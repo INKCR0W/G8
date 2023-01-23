@@ -795,35 +795,35 @@ G8.funs = {
             function () return UI.get("antiaim_bodyyaw_mode_" .. UI.get("antiaim_playercondition")) == "Anti-Bruteforce" end;
         }, nil, nil)
 
-        UI.new(G8.defs.groups.antiaim.exploit:combo("Exploit AA", {"Disabled", "Fake Flick", "Defensive AA"}), "antiaim_exploit_list", "s", {function () return UI.get("antiaim_switch") end;}, nil, "\aA6C0FEFFWill Override Normail AA")
-        UI.new(G8.defs.groups.antiaim.exploit:slider("Flick Speed", 0, 30, 20, 1, function ()
-            if UI.get("antiaim_flick_speed") == 0 then
-                return "RND."
-            else
-                return UI.get("antiaim_flick_speed") .. "°"
-            end
-        end), "antiaim_flick_speed", "i", {
-            function () return UI.get("antiaim_switch") end;
-            function () return UI.get("antiaim_exploit_list") == "Fake Flick" end;
-        }, nil, "\a6E96F0FF0 -> Random")
-        UI.new(G8.defs.groups.antiaim.exploit:slider("Flick Yaw", 20, 100, 75, 1, "°"), "antiaim_flick_yaw", "i", {
-            function () return UI.get("antiaim_switch") end;
-            function () return UI.get("antiaim_exploit_list") == "Fake Flick" end;
-        }, nil, nil)
-        UI.new(G8.defs.groups.antiaim.exploit:switch("Flick Invert", false), "antiaim_flick_invert", "b", {
-            function () return UI.get("antiaim_switch") end;
-            function () return UI.get("antiaim_exploit_list") == "Fake Flick" end;
-        }, {
-            function ()
-                if UI.get("antiaim_flick_invert") then
-                    G8.vars.flick_invert = not G8.vars.flick_invert
-                    utils_execute_after(0.3, function ()
-                        UI.set("antiaim_flick_invert", false)
-                    end)
-                end
-            end;
-        }, "Bind Any Key")
-        UI.new(G8.defs.groups.antiaim.exploit:slider("Yaw Offset", 0, 180, 27, 1, "°"), "antiaim_defensive_offset", "i", {function () return UI.get("antiaim_exploit_list") == "Defensive AA" end;}, nil, nil)
+        -- UI.new(G8.defs.groups.antiaim.exploit:combo("Exploit AA", {"Disabled", "Fake Flick", "Defensive AA"}), "antiaim_exploit_list", "s", {function () return UI.get("antiaim_switch") end;}, nil, "\aA6C0FEFFWill Override Normail AA")
+        -- UI.new(G8.defs.groups.antiaim.exploit:slider("Flick Speed", 0, 30, 20, 1, function ()
+        --     if UI.get("antiaim_flick_speed") == 0 then
+        --         return "RND."
+        --     else
+        --         return UI.get("antiaim_flick_speed") .. "°"
+        --     end
+        -- end), "antiaim_flick_speed", "i", {
+        --     function () return UI.get("antiaim_switch") end;
+        --     function () return UI.get("antiaim_exploit_list") == "Fake Flick" end;
+        -- }, nil, "\a6E96F0FF0 -> Random")
+        -- UI.new(G8.defs.groups.antiaim.exploit:slider("Flick Yaw", 20, 100, 75, 1, "°"), "antiaim_flick_yaw", "i", {
+        --     function () return UI.get("antiaim_switch") end;
+        --     function () return UI.get("antiaim_exploit_list") == "Fake Flick" end;
+        -- }, nil, nil)
+        -- UI.new(G8.defs.groups.antiaim.exploit:switch("Flick Invert", false), "antiaim_flick_invert", "b", {
+        --     function () return UI.get("antiaim_switch") end;
+        --     function () return UI.get("antiaim_exploit_list") == "Fake Flick" end;
+        -- }, {
+        --     function ()
+        --         if UI.get("antiaim_flick_invert") then
+        --             G8.vars.flick_invert = not G8.vars.flick_invert
+        --             utils_execute_after(0.3, function ()
+        --                 UI.set("antiaim_flick_invert", false)
+        --             end)
+        --         end
+        --     end;
+        -- }, "Bind Any Key")
+        -- UI.new(G8.defs.groups.antiaim.exploit:slider("Yaw Offset", 0, 180, 27, 1, "°"), "antiaim_defensive_offset", "i", {function () return UI.get("antiaim_exploit_list") == "Defensive AA" end;}, nil, nil)
 
         UI.new(G8.defs.groups.fakelag.main:switch("Fake-Lag Builder", false), "fakelag_switch", "b", nil, nil, nil)
         UI.new(G8.defs.groups.fakelag.main:switch("On-Shot Fix", false), "fakelag_fix_switch", "b", {function () return UI.get("fakelag_switch") end;}, nil, "\a2EF333FFSafer to fire")
@@ -897,7 +897,6 @@ G8.funs = {
             UI.new(G8.defs.groups.fakelag.custom_builder:slider("fakelag_custom_hide", 2, 64, 2), "fakelag_custom_value_" .. state, "i", {function () return false end;}, nil, nil)
         end
 
-       
         UI.new(G8.defs.groups.fakelag.custom_builder:button("Add A Way", G8.funs.addway_fl), "fakelag_addway", "-", {
             function () return UI.get("fakelag_switch") end;
             function () return UI.get("fakelag_override_" .. UI.get("fakelag_playercondition")) end;
@@ -908,29 +907,13 @@ G8.funs = {
             function () return UI.get("fakelag_override_" .. UI.get("fakelag_playercondition")) end;
             function () return UI.get("fakelag_mode_" .. UI.get("fakelag_playercondition")) ==  "Custom-Builder"end;
         }, nil, nil)
+
+        UI.new(G8.defs.groups.visual.solus_ui:selectable("Solus UI", {"Watermark", "Spectators", "Keybinds"}))
     end;
 
-    --[[
-    fl_modes = {
-        "Static",
-        "Jitter",
-        "Random",
-        "Fluctuate",
-        "Fluctuate-Update",
-        "Always-Choke",
-        "Custom-Builder",
-    },
-    },]]
+
 
     --[[
-        
-
-    fakelag = {
-        main = ui_create(G8.defs.tabs.fakelag, ui_get_icon("snowboarding") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Main")),
-        builder = ui_create(G8.defs.tabs.fakelag, ui_get_icon("hdd") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Fake-Lag Builder")),
-        custom_builder = ui_create(G8.defs.tabs.fakelag, ui_get_icon("otter") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Custom Builder")),
-    },
-
     visual = {
         solus_ui = ui_create(G8.defs.tabs.visual, ui_get_icon("window-restore") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Solus UI")),
         crosshair_indicator = ui_create(G8.defs.tabs.visual, ui_get_icon("crosshairs") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Crosshair Indicator")),
@@ -1149,7 +1132,7 @@ G8.defs.groups = {
         builder = ui_create(G8.defs.tabs.antiaim, ui_get_icon("hdd") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Anti-Aim Builder")),
         xwaybuilder = ui_create(G8.defs.tabs.antiaim, ui_get_icon("otter") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " X-Way Builder")),
         bfbuilder = ui_create(G8.defs.tabs.antiaim, ui_get_icon("otter") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Anti-Bruteforce Builder")),
-        exploit = ui_create(G8.defs.tabs.antiaim, ui_get_icon("bug") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Exploit Anti-Aim")),
+        -- exploit = ui_create(G8.defs.tabs.antiaim, ui_get_icon("bug") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Exploit Anti-Aim")),
     },
 
     fakelag = {
