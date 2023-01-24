@@ -264,6 +264,8 @@ G8 = {
     vars = {},
     funs = {},
     refs = {},
+    feat = {},
+    regs = {},
 }
 
 
@@ -908,7 +910,17 @@ G8.funs = {
             function () return UI.get("fakelag_mode_" .. UI.get("fakelag_playercondition")) ==  "Custom-Builder"end;
         }, nil, nil)
 
-        UI.new(G8.defs.groups.visual.solus_ui:selectable("Solus UI", {"Watermark", "Spectators", "Keybinds"}))
+        UI.new(G8.defs.groups.visual.aspect_ratio:switch("Aspect Ratio", false), "visual_aspect_ratio", "i", nil, {
+            function ()
+                cvar.r_aspectratio:float(UI.get("visual_aspect_ratio") and UI.get("visual_aspect_value") / 10 or 0)
+            end;
+        }, nil)
+        UI.new(G8.defs.groups.visual.aspect_ratio:slider("Ratio Value", 0, 20, 0, 0.1), "visual_aspect_value", "i", {function () return UI.get("visual_aspect_ratio") end;}, {
+            function ()
+                cvar.r_aspectratio:float(UI.get("visual_aspect_ratio") and UI.get("visual_aspect_value") / 10 or 0)
+            end;
+        }, nil)
+        UI.new(G8.defs.groups.visual.solus_ui:selectable("Solus UI", {"Watermark", "Spectators", "Keybinds"}), "visual_solusui", "t", nil, nil, nil)
     end;
 
 
@@ -1142,12 +1154,12 @@ G8.defs.groups = {
     },
 
     visual = {
+        aspect_ratio = ui_create(G8.defs.tabs.visual, ui_get_icon("glasses") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Aspect Ratio")),
+        view_model = ui_create(G8.defs.tabs.visual, ui_get_icon("street-view") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " View Model Changer")),
         solus_ui = ui_create(G8.defs.tabs.visual, ui_get_icon("window-restore") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Solus UI")),
         crosshair_indicator = ui_create(G8.defs.tabs.visual, ui_get_icon("crosshairs") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Crosshair Indicator")),
         skeet_indicator = ui_create(G8.defs.tabs.visual, ui_get_icon("window-maximize") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Skeet Indicator")),
         scope_overlay = ui_create(G8.defs.tabs.visual, ui_get_icon("camera-retro") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Scope Overlay")),
-        view_model = ui_create(G8.defs.tabs.visual, ui_get_icon("street-view") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " View Model Changer")),
-        aspect_ratio = ui_create(G8.defs.tabs.visual, ui_get_icon("glasses") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Aspect Ratio")),
     },
 
     misc = {
@@ -1266,13 +1278,16 @@ G8.refs = {
 
 -- REFS END
 
+-- FEAT START
+
+G8.feat.weapon_builder = function ()
+    if not UI.get("ragebot_switch") then return end
+end
+
+-- FEAT END
 
 
-events.render:set(function ()
-    G8.funs.indicator(color(255,125,125,255), "test1", 0, 0)
-    G8.funs.indicator(color(125,255,125,255), "test2", 1, 0)
-    G8.funs.indicator(color(125,125,225,255), "test3", 2, 0)
-end)
+
 
 
 G8.funs.prepare_func()
