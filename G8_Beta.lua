@@ -531,47 +531,19 @@ G8.funs = {
                 function () return UI.get("ragebot_switch") end;
                 function () return UI.get("ragebot_weapon_list") == name end;
             }, nil, nil)
-            UI.new(G8.defs.groups.rage.ragebot:selectable("Override List", {"Weapon Override", "No Scope", "Air"}), "ragebot_override_list_" .. name, "s", {
+            UI.new(G8.defs.groups.rage.ragebot:selectable("Override List", {"Defualt", "Override", "No-Scope", "Air"}), "ragebot_override_list_" .. name, "s", {
                 function () return UI.get("ragebot_switch") end;
                 function () return UI.get("ragebot_weapon_list") == name end;
                 function () return UI.get("ragebot_override_switch_" .. name) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.rage.ragebot:slider("Override Damage", 1, 120, 1), "ragebot_override_dmg_" .. name, "i", {
-                function () return UI.get("ragebot_switch") end;
-                function () return UI.get("ragebot_weapon_list") == name end;
-                function () return UI.get("ragebot_override_switch_" .. name) end;
-                function () return UI.contains("ragebot_override_list_" .. name, "Weapon Override") end;
-            }, nil, nil)
-            UI.new(G8.defs.groups.rage.ragebot:slider("Override Hit-Chance", 1, 120, 1), "ragebot_override_hc_" .. name, "i", {
-                function () return UI.get("ragebot_switch") end;
-                function () return UI.get("ragebot_weapon_list") == name end;
-                function () return UI.get("ragebot_override_switch_" .. name) end;
-                function () return UI.contains("ragebot_override_list_" .. name, "Weapon Override") end;
-            }, nil, nil)
-            UI.new(G8.defs.groups.rage.ragebot:slider("No Scope Damage", 1, 120, 1), "ragebot_noscope_dmg_" .. name, "i", {
-                function () return UI.get("ragebot_switch") end;
-                function () return UI.get("ragebot_weapon_list") == name end;
-                function () return UI.get("ragebot_override_switch_" .. name) end;
-                function () return UI.contains("ragebot_override_list_" .. name, "No Scope") end;
-            }, nil, nil)
-            UI.new(G8.defs.groups.rage.ragebot:slider("No Scope Hit-Chance", 1, 120, 1), "ragebot_noscope_hc_" .. name, "i", {
-                function () return UI.get("ragebot_switch") end;
-                function () return UI.get("ragebot_weapon_list") == name end;
-                function () return UI.get("ragebot_override_switch_" .. name) end;
-                function () return UI.contains("ragebot_override_list_" .. name, "No Scope") end;
-            }, nil, nil)
-            UI.new(G8.defs.groups.rage.ragebot:slider("Air Damage", 1, 120, 1), "ragebot_air_dmg_" .. name, "i", {
-                function () return UI.get("ragebot_switch") end;
-                function () return UI.get("ragebot_weapon_list") == name end;
-                function () return UI.get("ragebot_override_switch_" .. name) end;
-                function () return UI.contains("ragebot_override_list_" .. name, "Air") end;
-            }, nil, nil)
-            UI.new(G8.defs.groups.rage.ragebot:slider("Air Hit-Chance", 1, 120, 1), "ragebot_air_hc_" .. name, "i", {
-                function () return UI.get("ragebot_switch") end;
-                function () return UI.get("ragebot_weapon_list") == name end;
-                function () return UI.get("ragebot_override_switch_" .. name) end;
-                function () return UI.contains("ragebot_override_list_" .. name, "Air") end;
-            }, nil, nil)
+            for _, state in pairs({"Defualt", "Override", "No-Scope", "Air"}) do
+                UI.new(G8.defs.groups.rage.ragebot:slider(state .. " Damage", 0, 120, 0), "ragebot_" .. state .. "_dmg_" .. name, "i", {
+                    function () return UI.get("ragebot_switch") end;
+                    function () return UI.get("ragebot_weapon_list") == name end;
+                    function () return UI.get("ragebot_override_switch_" .. name) end;
+                    function () return UI.get("ragebot_override_list_" .. name) == state end;
+                }, nil, nil)
+            end
         end
 
         UI.new(G8.defs.groups.rage.doubletap:switch("Double-Tap Builder", false), "ragebot_doubletap_switch", "b", nil, nil, nil)
@@ -1052,7 +1024,7 @@ G8.defs = {
         "Global",
         "Standing",
         "Running",
-        "Duck",
+        "Crouching",
         "Slow-Walk",
         "Air",
         "Air-Duck",
@@ -1349,7 +1321,21 @@ G8.feat.weapon_builder = function ()
         return
     end
 
-    
+    local override_mode = 0
+
+    if UI.get("ragebot_override_key") then
+        override_mode = 1
+    elseif G8.vars.player_state == "Air" or G8.vars.player_state == "Air-Duck" then
+        override_mode = 2
+    elseif not me.m_bIsScoped then
+        override_mode = 3
+    end
+
+    if override_mode == 1 and UI.contains("ragebot_override_list_" .. weapon_name, "Weapon Override") then
+        G8.refs.ragebot.weapon.minimum_damage:override(UI.get("ragebot_override_dmg_" .. weapon_name))
+        G8.refs.ragebot.weapon.hit_chance:override(UI.get("ragebot_override_hc_" .. weapon_name))
+    end
+
 end
 
 -- FEAT END
