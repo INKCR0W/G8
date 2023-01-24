@@ -74,8 +74,8 @@ UI.delete = function(idx)
     UI.list[idx] = nil
 end;
 
-UI.contains = function(obj, val)
-    obj = UI.get(obj)
+UI.contains = function(idx, val)
+    local obj = UI.get(idx)
     if type(obj) ~= "table" then
         return false
     end
@@ -270,7 +270,7 @@ G8 = {
 
 
 
--- FUNS BEGIN
+-- FUNS START
 
 G8.funs = {
     download_file = function (from, to)
@@ -998,7 +998,7 @@ G8.funs = {
 -- FUNS END
 
 
---DEFS BEGIN
+--DEFS START
 
 G8.defs = {
     username = common_get_username(),
@@ -1049,25 +1049,16 @@ G8.defs = {
 	},
 
     player_states = {
-        [1] = "Global",
-        [2] = "Standing",
-        [3] = "Moving",
-        [4] = "Crouching",
-        [5] = "Slowwalk",
-        [6] = "Air-Duck",
-        [7] = "Air",
-        [8] = "Legit aa",
-    },
-
-    player_states_idx = {
-        ["Global"] = 1,
-        ["Standing"] = 2,
-        ["Moving"] = 3,
-        ["Crouching"] = 4,
-        ["Slowwalk"] = 5,
-        ["Air-Duck"] = 6,
-        ["Air"] = 7,
-        ["Legit aa"] = 8
+        "Global",
+        "Standing",
+        "Running",
+        "Duck",
+        "Slow-Walk",
+        "Air",
+        "Air-Duck",
+        "Fake-Duck",
+        "On-Peek",
+        "Legit-AA"
     },
 
     aa_manuals = {
@@ -1186,12 +1177,20 @@ G8.defs.groups = {
 
 
 
--- VARS BEGIN
+-- VARS START
 
 G8.vars = {
     prepare_timer = 0,
     shot_num = 0,
     flick_invert = false,
+    velocity = 0,
+    duck_amount = 0,
+    on_ground = 0,
+    on_ground_ticks = 0,
+    invert = false,
+    desync_value = 0,
+    aa_dir = 0,
+    player_state = "",
 }
 
 -- VARS END
@@ -1200,7 +1199,7 @@ G8.vars = {
 
 
 
--- REFS BEGIN
+-- REFS START
 
 G8.refs = {
     ragebot = {
@@ -1280,22 +1279,96 @@ G8.refs = {
 
 -- FEAT START
 
+G8.feat.updatevar = function ()
+    local lp = entity_get_local_player()
+
+    if not lp or not lp:is_alive() then
+        G8.vars.velocity = 0
+        G8.vars.duck_amount = 0
+        G8.vars.on_ground = 0
+        G8.vars.on_ground_ticks = 0
+        G8.vars.invert = false
+        G8.vars.desync_value = 0
+        G8.vars.aa_dir = 0
+        return
+    end
+
+    local vel = lp.m_vecVelocity
+    G8.vars.velocity = math.sqrt(vel.x * vel.x + vel.y * vel.y)
+    G8.vars.duck_amount = lp.m_flDuckAmount
+    G8.vars.on_ground = bit.band(lp["m_fFlags"], 1)
+    G8.vars.invert = (math.floor(math.min(G8.refs.antiaim.body_yaw.left_limit:get(), lp.m_flPoseParameter[11] * (G8.refs.antiaim.body_yaw.left_limit:get() * 2) - G8.refs.antiaim.body_yaw.left_limit:get()))) > 0
+    G8.vars.desync_value = lp.m_flPoseParameter[11] * 120 - 60
+
+    if G8.vars.on_ground == 1 then
+        G8.vars.on_ground_ticks = G8.vars.on_ground_ticks + 1
+    else
+        G8.vars.on_ground_ticks = 0
+    end
+
+    if G8.refs.ragebot.misc.peek_assist:get() and G8.vars.velocity > 5 then
+        G8.vars.player_state = "On-Peek"
+    elseif G8.refs.antiaim.misc.fake_duck:get() and G8.vars.on_ground_ticks > 8 then
+        G8.vars.player_state = "Fake-Duck"
+    elseif G8.vars.on_ground_ticks < 2 and G8.vars.duck_amount > 0.8 then
+        G8.vars.player_state = "Air-Duck"
+    elseif G8.vars.on_ground_ticks < 2 then
+        G8.vars.player_state = "Air"
+    elseif G8.refs.antiaim.misc.slow_walk:get() and G8.vars.velocity > 5 then
+        G8.vars.player_state = "Slow-Walk"
+    elseif G8.vars.duck_amount > 0.8 and G8.vars.on_ground_ticks > 8 then
+        G8.vars.player_state = "Duck"
+    elseif G8.vars.velocity > 5 and G8.vars.on_ground_ticks > 8 and not G8.refs.antiaim.misc.slow_walk:get() then
+        G8.vars.player_state = "Running"
+    elseif G8.vars.velocity <= 5 and G8.vars.on_ground_ticks > 8 then
+        G8.vars.player_state = "Standing"
+    else
+        G8.vars.player_state = "Global"
+    end
+end
+
+
 G8.feat.weapon_builder = function ()
     if not UI.get("ragebot_switch") then return end
+
+    local me = entity_get_local_player()
+    if not me or not me:is_alive() then
+        return
+    end
+
+    local weapon = me:get_player_weapon()
+
+    if weapon == nil then
+        return
+    end
+
+    local weapon_name = weapon:get_weapon_info().weapon_name
+    weapon_name = G8.defs.weapon_types[weapon_name] or "Global"
+
+    if not UI.contains("ragebot_weapon_list", weapon_name) then
+        return
+    end
+
+    
 end
 
 -- FEAT END
 
 
+-- REGS START
+
+G8.regs.createmove = function (cmd)
+    G8.feat.updatevar()
+    G8.feat.weapon_builder()
+end
 
 
-
-G8.funs.prepare_func()
-
-if not G8.defs.gif then
-    utils_console_exec("clear")
-    utils_execute_after(0.2, function ()
-        printraw([[
+G8.setup = function ()
+    G8.funs.prepare_func()
+    if not G8.defs.gif then
+        utils_console_exec("clear")
+        utils_execute_after(0.2, function ()
+            printraw([[
             ⠀⠀⠀⠀⠀⠀⠀⣨⣿⣷
             ⠀⠀⠀⠀⠀⠀⣾⣿⠉⣿⣷
             ⠀⠀⠀⠀⠀⣾⣿⡇⠀⢸⣿⣿⡀
@@ -1304,21 +1377,29 @@ if not G8.defs.gif then
             ⠀⢠⣿⣿⣿⣿⣿⣿⠶⣿⣿⣿⣿⣿⣿⡄
             ⢠⣿⣿⣿⣿⣿⣿⣷⣤⣾⣿⣿⣿⣿⣿⣿⡄
             ⠀⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉⠉
-            
-        ]])
+            ]])
+            for i = 1, 10 do
+                printraw("\aDD63E7[G8] \a868686» \aD5D5D5Invaild to download image, please download https://crow.pub/G8.gif and put it to nl\\Crow\\imgs\\")
+                printdev("[G8] » Invaild to download image, please download https://crow.pub/G8.gif and put it to nl\\Crow\\imgs\\")
+            end
+            utils_console_exec("showconsole")
+        end)
+        return
+    end
 
-        for i = 1, 10 do
-            printraw("\aDD63E7[G8] \a868686» \aD5D5D5Invaild to download image, please download https://crow.pub/G8.gif and put it to nl\\Crow\\imgs\\")
-            printdev("[G8] » Invaild to download image, please download https://crow.pub/G8.gif and put it to nl\\Crow\\imgs\\")
-        end
-        utils_console_exec("showconsole")
-    end)
-    return
+
+    G8.funs.create_menu()
+    utils_execute_after(0.2, G8.funs.create_menu2)
+    utils_execute_after(1, UI.visibility_handle)
+
+    events.createmove:set(G8.regs.createmove)
+    events.render:set(G8.regs.render)
+
 end
+-- REGS END
 
-G8.funs.create_menu()
-utils_execute_after(0.2, G8.funs.create_menu2)
-utils_execute_after(1, UI.visibility_handle)
+
+
 
 
 
