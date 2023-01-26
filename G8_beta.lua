@@ -531,41 +531,70 @@ G8.funs = {
                 function () return UI.get("ragebot_switch") end;
                 function () return UI.get("ragebot_weapon_list") == name end;
             }, nil, nil)
-            UI.new(G8.defs.groups.rage.ragebot:selectable("Override List", {"Defualt", "Override", "No-Scope", "Air"}), "ragebot_override_list_" .. name, "s", {
+            UI.new(G8.defs.groups.rage.ragebot:selectable("Override List", {"Defualt", "Override", "Air", "No-Scope"}), "ragebot_override_list_" .. name, "s", {
                 function () return UI.get("ragebot_switch") end;
                 function () return UI.get("ragebot_weapon_list") == name end;
                 function () return UI.get("ragebot_override_switch_" .. name) end;
-            }, nil, nil)
-            for _, state in pairs({"Defualt", "Override", "No-Scope", "Air"}) do
+            }, {
+                function ()
+                    if not UI.contains("ragebot_override_list_" .. name, "Defualt") then
+                        local tab = UI.get("ragebot_override_list_" .. name)
+                        table.insert(tab, 1, "Defualt")
+                        UI.set("ragebot_override_list_" .. name, tab)
+                        UI.visibility_handle()
+                    end
+                end;
+            }, nil)
+            for _, state in pairs({"Defualt", "Override", "Air", "No-Scope"}) do
                 UI.new(G8.defs.groups.rage.ragebot:slider(state .. " Damage", 0, 120, 0), "ragebot_" .. state .. "_dmg_" .. name, "i", {
                     function () return UI.get("ragebot_switch") end;
                     function () return UI.get("ragebot_weapon_list") == name end;
                     function () return UI.get("ragebot_override_switch_" .. name) end;
-                    function () return UI.get("ragebot_override_list_" .. name) == state end;
+                    function () return UI.contains("ragebot_override_list_" .. name, state) end;
+                }, nil, nil)
+                UI.new(G8.defs.groups.rage.ragebot:slider(state .. " Hit-Chance", 0, 120, 0), "ragebot_" .. state .. "_hc_" .. name, "i", {
+                    function () return UI.get("ragebot_switch") end;
+                    function () return UI.get("ragebot_weapon_list") == name end;
+                    function () return UI.get("ragebot_override_switch_" .. name) end;
+                    function () return UI.contains("ragebot_override_list_" .. name, state) end;
                 }, nil, nil)
             end
         end
 
-        UI.new(G8.defs.groups.rage.doubletap:switch("Double-Tap Builder", false), "ragebot_doubletap_switch", "b", nil, nil, nil)
-        UI.new(G8.defs.groups.rage.doubletap:switch("Defensive Double-Tap", false), "ragebot_defensive_switch", "b", {
-            function () return UI.get("ragebot_doubletap_switch") end;
+        UI.new(G8.defs.groups.rage.doubletap:switch("Double-Tap Builder", false), "ragebot_doubletap", "b", nil, nil, nil)
+        UI.new(G8.defs.groups.rage.doubletap:switch("Teleport On Key", false), "ragebot_doubletap_tp", "b", {
+            function () return UI.get("ragebot_doubletap") end;
+        }, {
+            function ()
+                if not entity_get_local_player() then return end
+                rage_exploit:force_teleport()
+                utils_execute_after(0.1, function()
+                    UI.set("ragebot_doubletap_tp", false)
+                end)
+            end;
+        }, "Bind a key")
+        UI.new(G8.defs.groups.rage.doubletap:switch("Disable Clock Correction", false), "ragebot_clock_correction", "b", {
+            function () return UI.get("ragebot_doubletap") end;
         }, nil, nil)
-        UI.new(UI.get_element("ragebot_defensive_switch"):create():slider("Maximum Speed", 5, 260, 20), "ragebot_defensive_velocity", "i", {
-            function () return UI.get("ragebot_doubletap_switch") end;
-            function () return UI.get("ragebot_defensive_switch") end;
+        UI.new(G8.defs.groups.rage.doubletap:switch("Defensive Double-Tap", false), "ragebot_defensive", "b", {
+            function () return UI.get("ragebot_doubletap") end;
         }, nil, nil)
-        UI.new(G8.defs.groups.rage.doubletap:switch("Custom Double-Tap Tick Base", false), "ragebot_tickbase_switch", "b", {
-            function () return UI.get("ragebot_doubletap_switch") end;
+        UI.new(UI.get_element("ragebot_defensive"):create():slider("Maximum Speed", 5, 260, 20), "ragebot_defensive_velocity", "i", {
+            function () return UI.get("ragebot_doubletap") end;
+            function () return UI.get("ragebot_defensive") end;
         }, nil, nil)
-        UI.new(UI.get_element("ragebot_tickbase_switch"):create():slider("Tick Base", 16, 21, 16), "ragebot_tickbase_value", "i", {
-            function () return UI.get("ragebot_doubletap_switch") end;
-            function () return UI.get("ragebot_tickbase_switch") end;
+        UI.new(G8.defs.groups.rage.doubletap:switch("Custom Double-Tap Tick Base", false), "ragebot_tickbase", "b", {
+            function () return UI.get("ragebot_doubletap") end;
         }, nil, nil)
-        UI.new(G8.defs.groups.rage.doubletap:switch("Scout Auto Teleport", false), "ragebot_autotp_switch", "b", {
-            function () return UI.get("ragebot_doubletap_switch") end;
+        UI.new(UI.get_element("ragebot_tickbase"):create():slider("Tick Base", 16, 21, 16), "ragebot_tickbase_value", "i", {
+            function () return UI.get("ragebot_doubletap") end;
+            function () return UI.get("ragebot_tickbase") end;
         }, nil, nil)
-        UI.new(G8.defs.groups.rage.misc:switch("Jump Scout Fix", false), "ragebot_jumpscout_switch", "b", nil, nil, nil)
-        UI.new(G8.defs.groups.rage.misc:switch("Adaptive Extended Backtrack", false), "ragebot_adaptive_switch", "b", nil, nil, nil)
+        UI.new(G8.defs.groups.rage.doubletap:switch("Scout Auto Teleport", false), "ragebot_autotp", "b", {
+            function () return UI.get("ragebot_doubletap") end;
+        }, nil, nil)
+        UI.new(G8.defs.groups.rage.misc:switch("Jump Scout Fix", false), "ragebot_jumpscout", "b", nil, nil, nil)
+        UI.new(G8.defs.groups.rage.misc:switch("Adaptive Extended Backtrack", false), "ragebot_adaptive", "b", nil, nil, nil)
 
         UI.new(G8.defs.groups.antiaim.main:switch("Anti-Aim Builder", false), "antiaim_switch", "b", nil, nil, nil)
         UI.new(G8.defs.groups.antiaim.main:combo("Manual Anti-Aim", G8.defs.aa_manuals), "antiaim_manual", "s", {function () return UI.get("antiaim_switch") end;}, nil, nil)
@@ -574,7 +603,7 @@ G8.funs = {
         UI.new(G8.defs.groups.antiaim.main:switch("Legit AA Key", false), "antiaim_legit_key", "b", {function () return UI.get("antiaim_switch") end;}, nil, "Bind any key")
 
 
-        UI.new(G8.defs.groups.antiaim.builder:combo("Player Condition", G8.defs.player_states), "antiaim_playercondition", "s", {function () return UI.get("antiaim_switch") end;}, nil, nil)
+        UI.new(G8.defs.groups.antiaim.builder:combo("Player Condition", G8.defs.player_states_aa), "antiaim_playercondition", "s", {function () return UI.get("antiaim_switch") end;}, nil, nil)
 
         UI.new(G8.defs.groups.antiaim.main:switch("Invert Body Yaw Key", false), "antiaim_bodyyaw_invert", "b", {
             function () return UI.get("antiaim_switch") end;
@@ -588,7 +617,7 @@ G8.funs = {
                 end
             end;
         }, nil)
-        for _, state in pairs(G8.defs.player_states) do
+        for _, state in pairs(G8.defs.player_states_aa) do
             UI.new(G8.defs.groups.antiaim.builder:switch("Override -> " .. state, false), "antiaim_override_" .. state, "b", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
@@ -809,8 +838,8 @@ G8.funs = {
             function () return UI.get("fakelag_switch") end;
             function () return UI.get("fakelag_fix_switch") end;
         }, nil, nil)
-        UI.new(G8.defs.groups.fakelag.builder:combo("Player Condition", G8.defs.player_states), "fakelag_playercondition", "s", {function () return UI.get("fakelag_switch") end;}, nil, nil)
-        for _, state in pairs(G8.defs.player_states) do
+        UI.new(G8.defs.groups.fakelag.builder:combo("Player Condition", G8.defs.player_states_fl), "fakelag_playercondition", "s", {function () return UI.get("fakelag_switch") end;}, nil, nil)
+        for _, state in pairs(G8.defs.player_states_fl) do
             UI.new(G8.defs.groups.fakelag.builder:switch("Override -> " .. state, false), "fakelag_override_" .. state, "b", {
                 function () return UI.get("fakelag_switch") end;
                 function () return UI.get("fakelag_playercondition") == state end;
@@ -887,24 +916,46 @@ G8.funs = {
                 cvar.r_aspectratio:float(UI.get("visual_aspect_ratio") and UI.get("visual_aspect_value") / 10 or 0)
             end;
         }, nil)
-        UI.new(G8.defs.groups.visual.aspect_ratio:slider("Ratio Value", 0, 20, 0, 0.1), "visual_aspect_value", "i", {function () return UI.get("visual_aspect_ratio") end;}, {
+        UI.new(UI.get_element("visual_aspect_ratio"):create():slider("Ratio Value", 0, 20, 0, 0.1), "visual_aspect_value", "i", {function () return UI.get("visual_aspect_ratio") end;}, {
             function ()
                 cvar.r_aspectratio:float(UI.get("visual_aspect_ratio") and UI.get("visual_aspect_value") / 10 or 0)
             end;
         }, nil)
+
+        UI.new(G8.defs.groups.visual.view_model:switch("View Model Changer", false), "visual_viewmodel_changer", "b", nil, nil, nil)
+        local viewmodel_changer = UI.get_element("visual_viewmodel_changer"):create()
+        UI.new(viewmodel_changer:slider("FOV", 0, 100, 60), "viewmodel_fov", "i", {
+            function () return UI.get("visual_viewmodel_changer") end;
+        }, nil, nil)
+        UI.new(viewmodel_changer:slider("X", -15, 15, 1), "viewmodel_x", "i", {
+            function () return UI.get("visual_viewmodel_changer") end;
+        }, nil, nil)
+        UI.new(viewmodel_changer:slider("Y", -15, 15, 1), "viewmodel_y", "i", {
+            function () return UI.get("visual_viewmodel_changer") end;
+        }, nil, nil)
+        UI.new(viewmodel_changer:slider("Z", -15, 15, 0), "viewmodel_z", "i", {
+            function () return UI.get("visual_viewmodel_changer") end;
+        }, nil, nil)
+
         UI.new(G8.defs.groups.visual.solus_ui:selectable("Solus UI", {"Watermark", "Spectators", "Keybinds"}), "visual_solusui", "t", nil, nil, nil)
+
+        UI.new(G8.defs.groups.visual.crosshair_indicator:switch("Crosshair Indicators", false), "visual_crosshair", "b", nil, nil, nil)
+
+        UI.new(G8.defs.groups.visual.skeet_indicator:switch("Skeet Indicator", false), "visual_skeet", "b", nil, nil, nil)
+        UI.new(UI.get_element("visual_skeet"):create():selectable("Indicators", {"Weapon State", "DMG", "HC", "FL", "DT", "HS", "FD", "DA", "LC"}), "visual_skeet_list", "t", { function () return UI.get("visual_skeet") end; }, nil, nil)
+        UI.new(UI.get_element("visual_skeet"):create():slider("Y Offset", -500, 500, 0), "visual_skeet_offset", "i", { function () return UI.get("visual_skeet") end; }, nil, nil)
     end;
 
 
 
     --[[
     visual = {
+        aspect_ratio = ui_create(G8.defs.tabs.visual, ui_get_icon("glasses") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Aspect Ratio")),
+        view_model = ui_create(G8.defs.tabs.visual, ui_get_icon("street-view") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " View Model Changer")),
         solus_ui = ui_create(G8.defs.tabs.visual, ui_get_icon("window-restore") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Solus UI")),
         crosshair_indicator = ui_create(G8.defs.tabs.visual, ui_get_icon("crosshairs") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Crosshair Indicator")),
         skeet_indicator = ui_create(G8.defs.tabs.visual, ui_get_icon("window-maximize") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Skeet Indicator")),
         scope_overlay = ui_create(G8.defs.tabs.visual, ui_get_icon("camera-retro") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Scope Overlay")),
-        view_model = ui_create(G8.defs.tabs.visual, ui_get_icon("street-view") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " View Model Changer")),
-        aspect_ratio = ui_create(G8.defs.tabs.visual, ui_get_icon("glasses") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Aspect Ratio")),
     },
 
     misc = {
@@ -922,7 +973,7 @@ G8.funs = {
     ]]
 
     create_menu2 = function ()
-        for _, state in pairs(G8.defs.player_states) do
+        for _, state in pairs(G8.defs.player_states_aa) do
             for num = 1, UI.get("antiaim_xway_value_" .. state) do
                 UI.new(G8.defs.groups.antiaim.xwaybuilder:slider("[" .. string_sub(state, 1, 1) .. "] Way " .. num, -180, 180, 0), "antiaim_xway_" .. state .. "_" .. num, "i", {
                     function () return UI.get("antiaim_switch") end;
@@ -934,7 +985,7 @@ G8.funs = {
         end
 
 
-        for _, state in pairs(G8.defs.player_states) do
+        for _, state in pairs(G8.defs.player_states_aa) do
             for num = 1, UI.get("antiaim_bf_value_" .. state) do
                 UI.new(G8.defs.groups.antiaim.bfbuilder:slider("[" .. string_sub(state, 1, 1) .. "] Limit " .. num, 0, 60, 0), "antiaim_bf_way_" .. state .. "_" .. num, "i", {
                     function () return UI.get("antiaim_switch") end;
@@ -947,7 +998,7 @@ G8.funs = {
         end
 
 
-        for _, state in pairs(G8.defs.player_states) do
+        for _, state in pairs(G8.defs.player_states_fl) do
             for num = 1, UI.get("fakelag_custom_value_" .. state) do
                 UI.new(G8.defs.groups.fakelag.custom_builder:slider("[" .. string_sub(state, 1, 1) .. "] Tick " .. num , 1, 64, 0, 1, "T"), "fakelag_customtick_" .. state .. "_" .. num, "i", {
                     function () return UI.get("fakelag_switch") end;
@@ -1020,7 +1071,7 @@ G8.defs = {
 	    ["Zeus"] = 7
 	},
 
-    player_states = {
+    player_states_aa = {
         "Global",
         "Standing",
         "Running",
@@ -1031,6 +1082,19 @@ G8.defs = {
         "Fake-Duck",
         "On-Peek",
         "Legit-AA"
+    },
+
+    player_states_fl = {
+        "Global",
+        "Standing",
+        "Running",
+        "Crouching",
+        "Slow-Walk",
+        "Air",
+        "Air-Duck",
+        "Fake-Duck",
+        "On-Peek",
+        "Break-LC"
     },
 
     aa_manuals = {
@@ -1315,27 +1379,72 @@ G8.feat.weapon_builder = function ()
     end
 
     local weapon_name = weapon:get_weapon_info().weapon_name
-    weapon_name = G8.defs.weapon_types[weapon_name] or "Global"
+    weapon_name = G8.funs.get_weapon_group(weapon_name)
 
-    if not UI.contains("ragebot_weapon_list", weapon_name) then
+    if not UI.get("ragebot_override_switch_" .. weapon_name) then
         return
     end
 
-    local override_mode = 0
+    local override_mode = ""
 
     if UI.get("ragebot_override_key") then
-        override_mode = 1
+        override_mode = "Override"
     elseif G8.vars.player_state == "Air" or G8.vars.player_state == "Air-Duck" then
-        override_mode = 2
+        override_mode = "Air"
     elseif not me.m_bIsScoped then
-        override_mode = 3
+        override_mode = "No-Scope"
     end
 
-    if override_mode == 1 and UI.contains("ragebot_override_list_" .. weapon_name, "Weapon Override") then
-        G8.refs.ragebot.weapon.minimum_damage:override(UI.get("ragebot_override_dmg_" .. weapon_name))
-        G8.refs.ragebot.weapon.hit_chance:override(UI.get("ragebot_override_hc_" .. weapon_name))
+    if UI.contains("ragebot_override_list_" .. weapon_name, override_mode) then
+        G8.refs.ragebot.weapon.minimum_damage:set(UI.get("ragebot_" .. override_mode .. "_dmg_" .. weapon_name))
+        G8.refs.ragebot.weapon.hit_chance:set(UI.get("ragebot_" .. override_mode .. "_hc_" .. weapon_name))
+    else
+        G8.refs.ragebot.weapon.minimum_damage:set(UI.get("ragebot_Defualt_dmg_" .. weapon_name))
+        G8.refs.ragebot.weapon.hit_chance:set(UI.get("ragebot_Defualt_hc_" .. weapon_name))
+    end
+end
+
+G8.feat.clock_correction = function ()
+    if not G8.refs.ragebot.double_tap.switch:get() then
+        cvar.cl_clock_correction:int(1)
+        return
     end
 
+    cvar.cl_clock_correction:int(0)
+end
+
+G8.feat.dt_defensive = function ()
+    if not G8.refs.ragebot.double_tap.switch:get() then return end
+
+    if not UI.get("ragebot_doubletap") or not UI.get("ragebot_defensive") then
+        rage_exploit:allow_defensive(false)
+        return
+    end
+
+    local me = entity_get_local_player()
+    if not me or not me:is_alive() then return end
+
+    if (math.sqrt(me.m_vecVelocity.x ^ 2 + me.m_vecVelocity.y ^ 2) <= UI.get("ragebot_defensive_velocity")) then
+        rage_exploit:allow_defensive(true)
+    else
+        rage_exploit:allow_defensive(false)
+    end
+end
+
+G8.feat.dt_tickbase = function ()
+    if not G8.refs.ragebot.double_tap.switch:get() then return end
+
+    if not UI.get("ragebot_doubletap") or not UI.get("ragebot_tickbase") then
+        return
+    end
+
+    if not entity_get_local_player() then return end
+
+    cvar.sv_maxusrcmdprocessticks:int(UI.get("ragebot_tickbase_value"))
+end
+
+G8.feat.auto_tp = function ()
+    
 end
 
 -- FEAT END
@@ -1348,6 +1457,25 @@ G8.regs.createmove = function (cmd)
     G8.feat.weapon_builder()
 end
 
+G8.regs.shutdown = function ()
+    for _, reset_function in ipairs(vmthook.list) do
+        reset_function()
+    end
+
+    for _, tab in pairs(G8.refs) do
+        if type(tab) == "table" then
+            for _, obj in pairs(tab) do
+                obj:override()
+                obj:reset()
+            end
+        else
+            tab:override()
+            tab:reset()
+        end
+    end
+
+    cvar.sv_maxusrcmdprocessticks:int(16)
+end
 
 G8.setup = function ()
     G8.funs.prepare_func()
@@ -1379,18 +1507,46 @@ G8.setup = function ()
     utils_execute_after(1, UI.visibility_handle)
 
     events.createmove:set(G8.regs.createmove)
-    events.render:set(G8.regs.render)
+    --events.render:set(G8.regs.render)
+    events.shutdown:set(G8.regs.shutdown)
 
+
+    G8.funs.log([[
+        ⣠⣤⣤⣤⣤⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⢰⡿⠋⠁⠀⠀⠈⠉⠙⠻⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⢀⣿⠇⠀⢀⣴⣶⡾⠿⠿⠿⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⣀⣀⣸⡿⠀⠀⢸⣿⣇⠀⠀⠀⠀⠀⠀⠙⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⣾⡟⠛⣿⡇⠀⠀⢸⣿⣿⣷⣤⣤⣤⣤⣶⣶⣿⠇⠀⠀⠀⠀⠀⠀⠀⣀⠀⠀
+⢀⣿⠀⢀⣿⡇⠀⠀⠀⠻⢿⣿⣿⣿⣿⣿⠿⣿⡏⠀⠀⠀⠀⢴⣶⣶⣿⣿⣿⣆
+⢸⣿⠀⢸⣿⡇⠀⠀⠀⠀⠀⠈⠉⠁⠀⠀⠀⣿⡇⣀⣠⣴⣾⣮⣝⠿⠿⠿⣻⡟
+⢸⣿⠀⠘⣿⡇⠀⠀⠀⠀⠀⠀⠀⣠⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠁⠉⠀
+⠸⣿⠀⠀⣿⡇⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠉⠀⠀⠀⠀
+⠀⠻⣷⣶⣿⣇⠀⠀⠀⢠⣼⣿⣿⣿⣿⣿⣿⣿⣛⣛⣻⠉⠁⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⢸⣿⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⢸⣿⣀⣀⣀⣼⡿⢿⣿⣿⣿⣿⣿⡿⣿⣿⣿
+
+G8.lua loaded
+    ]])
 end
 -- REGS END
 
+G8.setup()
 
 
 
 
-
-
-
+--⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⣤⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+--⠀⠀⠀⠀⠀⢰⡿⠋⠁⠀⠀⠈⠉⠙⠻⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+--⠀⠀⠀⠀⢀⣿⠇⠀⢀⣴⣶⡾⠿⠿⠿⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+--⠀⠀⣀⣀⣸⡿⠀⠀⢸⣿⣇⠀⠀⠀⠀⠀⠀⠙⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+--⠀⣾⡟⠛⣿⡇⠀⠀⢸⣿⣿⣷⣤⣤⣤⣤⣶⣶⣿⠇⠀⠀⠀⠀⠀⠀⠀⣀⠀⠀
+--⢀⣿⠀⢀⣿⡇⠀⠀⠀⠻⢿⣿⣿⣿⣿⣿⠿⣿⡏⠀⠀⠀⠀⢴⣶⣶⣿⣿⣿⣆
+--⢸⣿⠀⢸⣿⡇⠀⠀⠀⠀⠀⠈⠉⠁⠀⠀⠀⣿⡇⣀⣠⣴⣾⣮⣝⠿⠿⠿⣻⡟
+--⢸⣿⠀⠘⣿⡇⠀⠀⠀⠀⠀⠀⠀⣠⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠁⠉⠀
+--⠸⣿⠀⠀⣿⡇⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠉⠀⠀⠀⠀
+--⠀⠻⣷⣶⣿⣇⠀⠀⠀⢠⣼⣿⣿⣿⣿⣿⣿⣿⣛⣛⣻⠉⠁⠀⠀⠀⠀⠀⠀⠀
+--⠀⠀⠀⠀⢸⣿⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀
+--⠀⠀⠀⠀⢸⣿⣀⣀⣀⣼⡿⢿⣿⣿⣿⣿⣿⡿⣿⣿⣿
 
 
 
