@@ -1,7 +1,7 @@
 
 -- EXTERN START
 
-local ui_create, ui_find, utils_create_interface, files_write, files_read, printdev, printraw, printchat, entity_get_local_player, utils_console_exec, render_load_image_from_file, common_add_notify, common_get_username, render_texture, render_world_to_screen, is_button_down, render_screen_size, render_load_font, render_text, render_poly_blur, utils_execute_after, render_circle_outline, entity_get_game_rules, render_gradient, render_measure_text, rage_exploit, ui_get_icon, files_get_crc32, ui_get_alpha, common_reload_script, files_create_folder, math_sqrt, string_sub, utils_random_int = ui.create, ui.find, utils.create_interface, files.write, files.read, print_dev, print_raw, print_chat, entity.get_local_player, utils.console_exec, render.load_image_from_file, common.add_notify, common.get_username, render.texture, render.world_to_screen, common.is_button_down, render.screen_size, render.load_font, render.text, render.poly_blur, utils.execute_after, render.circle_outline, entity.get_game_rules, render.gradient, render.measure_text, rage.exploit, ui.get_icon, files.get_crc32, ui.get_alpha, common.reload_script, files.create_folder, math.sqrt, string.sub, utils.random_int
+local ui_create, ui_find, utils_create_interface, files_write, files_read, printdev, printraw, printchat, entity_get_local_player, utils_console_exec, render_load_image_from_file, common_add_notify, common_get_username, render_texture, render_world_to_ , is_button_down, render_screen_size, render_load_font, render_text, render_poly_blur, utils_execute_after, render_circle_outline, entity_get_game_rules, render_gradient, render_measure_text, rage_exploit, ui_get_icon, files_get_crc32, ui_get_alpha, common_reload_script, files_create_folder, math_sqrt, string_sub, utils_random_int, entity_get_players, utils_net_channel, utils_get_vfunc, bit_band, bit_lshift, entity_get = ui.create, ui.find, utils.create_interface, files.write, files.read, print_dev, print_raw, print_chat, entity.get_local_player, utils.console_exec, render.load_image_from_file, common.add_notify, common.get_username, render.texture, render.world_to_screen, common.is_button_down, render.screen_size, render.load_font, render.text, render.poly_blur, utils.execute_after, render.circle_outline, entity.get_game_rules, render.gradient, render.measure_text, rage.exploit, ui.get_icon, files.get_crc32, ui.get_alpha, common.reload_script, files.create_folder, math.sqrt, string.sub, utils.random_int, entity.get_players, utils.net_channel, utils.get_vfunc, bit.band, bit.lshift, entity.get
 
 local ffi = require ("ffi")
 local bit = require ("bit")
@@ -291,10 +291,10 @@ G8.funs = {
         panorama.SteamOverlayAPI.OpenExternalBrowserURL(link)
     end;
 
-    get_dist = function (A, B, C)
-        local a = B:dist(C)
-        local b = A:dist(C)
-        local c = A:dist(B)
+    get_dist = function (start, to, target)
+        local a = start:dist(to)
+        local b = to:dist(target)
+        local c = start:dist(target)
 
         return math_sqrt(c^2 - ((a^2 + c^2 - b^2)^2 / (4*(a^2))))
     end;
@@ -357,6 +357,11 @@ G8.funs = {
         else
             return "Global"
         end
+    end;
+
+    playsound = function (sound_name, volume)
+		local name = sound_name:lower():find(".wav") and sound_name or ("%s.wav"):format(sound_name)
+		pcall(G8.defs.ffi_helper.PlaySound, name, tonumber(volume) / 100, 100, 0, 0)
     end;
 
     addway_aa = function ()
@@ -518,13 +523,21 @@ G8.funs = {
         G8.defs.gif = render_load_image_from_file("nl\\Crow\\imgs\\G8.gif")
     end;
 
+    get_average = function (tab)
+        local sum = 0
+        for _, val in pairs(tab) do
+            sum = sum + val;
+        end
+        return sum / #tab;
+    end;
+
     create_menu = function ()
         UI.new(G8.defs.groups.main.main:label("Welcome, " .. G8.funs.gradient_text(255, 8, 68, 255, 255, 177, 153, 255, G8.defs.username)), "main_label", "-", nil, nil, nil)
         UI.new(G8.defs.groups.main.main:switch("Enable G8 GIF", false), "main_gif_switch", "m", nil, nil, "\aFF0000FFYOU SURE???")
         UI.new(G8.defs.groups.main.texture:texture(G8.defs.gif, vector(338,338)), "main_gif", "-", {function () return UI.get("main_gif_switch") end,}, nil, nil)
 
         UI.new(G8.defs.groups.rage.ragebot:switch("Weapon Builder", false), "ragebot_switch", "b", nil, nil, nil)
-        UI.new(G8.defs.groups.rage.ragebot:switch("Override Key", false), "ragebot_override_key", "b", {function () return UI.get("ragebot_switch") end}, nil, "Bind any key")
+        UI.new(G8.defs.groups.rage.ragebot:switch("Override Key", false), "ragebot_override_key", "b", {function () return UI.get("ragebot_switch") end}, nil, "Bind a key")
         UI.new(G8.defs.groups.rage.ragebot:combo("Weapons", G8.defs.weapon_names), "ragebot_weapon_list", "s", {function () return UI.get("ragebot_switch") end}, nil, nil)
         for _, name in pairs(G8.defs.weapon_names) do
             UI.new(G8.defs.groups.rage.ragebot:switch("Override " .. name), "ragebot_override_switch_" .. name, "b", {
@@ -546,13 +559,21 @@ G8.funs = {
                 end;
             }, nil)
             for _, state in pairs({"Defualt", "Override", "Air", "No-Scope"}) do
-                UI.new(G8.defs.groups.rage.ragebot:slider(state .. " Damage", 0, 120, 0), "ragebot_" .. state .. "_dmg_" .. name, "i", {
+                UI.new(G8.defs.groups.rage.ragebot:slider(state .. " Damage", 0, 130, 0, 1, function (val)
+                    if val == 0 then
+                        return "Auto"
+                    elseif val > 100 then
+                        return "+" .. (val - 100)
+                    else
+                        return val
+                    end
+                end), "ragebot_" .. state .. "_dmg_" .. name, "i", {
                     function () return UI.get("ragebot_switch") end;
                     function () return UI.get("ragebot_weapon_list") == name end;
                     function () return UI.get("ragebot_override_switch_" .. name) end;
                     function () return UI.contains("ragebot_override_list_" .. name, state) end;
                 }, nil, nil)
-                UI.new(G8.defs.groups.rage.ragebot:slider(state .. " Hit-Chance", 0, 120, 0), "ragebot_" .. state .. "_hc_" .. name, "i", {
+                UI.new(G8.defs.groups.rage.ragebot:slider(state .. " Hit-Chance", 0, 100, 0), "ragebot_" .. state .. "_hc_" .. name, "i", {
                     function () return UI.get("ragebot_switch") end;
                     function () return UI.get("ragebot_weapon_list") == name end;
                     function () return UI.get("ragebot_override_switch_" .. name) end;
@@ -564,15 +585,7 @@ G8.funs = {
         UI.new(G8.defs.groups.rage.doubletap:switch("Double-Tap Builder", false), "ragebot_doubletap", "b", nil, nil, nil)
         UI.new(G8.defs.groups.rage.doubletap:switch("Teleport On Key", false), "ragebot_doubletap_tp", "b", {
             function () return UI.get("ragebot_doubletap") end;
-        }, {
-            function ()
-                if not entity_get_local_player() then return end
-                rage_exploit:force_teleport()
-                utils_execute_after(0.1, function()
-                    UI.set("ragebot_doubletap_tp", false)
-                end)
-            end;
-        }, "Bind a key")
+        }, nil, "Bind a key")
         UI.new(G8.defs.groups.rage.doubletap:switch("Disable Clock Correction", false), "ragebot_clock_correction", "b", {
             function () return UI.get("ragebot_doubletap") end;
         }, nil, nil)
@@ -595,12 +608,13 @@ G8.funs = {
         }, nil, nil)
         UI.new(G8.defs.groups.rage.misc:switch("Jump Scout Fix", false), "ragebot_jumpscout", "b", nil, nil, nil)
         UI.new(G8.defs.groups.rage.misc:switch("Adaptive Extended Backtrack", false), "ragebot_adaptive", "b", nil, nil, nil)
-
+--flag1
         UI.new(G8.defs.groups.antiaim.main:switch("Anti-Aim Builder", false), "antiaim_switch", "b", nil, nil, nil)
         UI.new(G8.defs.groups.antiaim.main:combo("Manual Anti-Aim", G8.defs.aa_manuals), "antiaim_manual", "s", {function () return UI.get("antiaim_switch") end;}, nil, nil)
-        UI.new(G8.defs.groups.antiaim.main:selectable("Disable Yaw While", G8.defs.aa_manuals), "antiaim_disable_yaw", "t", {function () return UI.get("antiaim_switch") end;}, nil, nil)
-        UI.new(G8.defs.groups.antiaim.main:selectable("Disable Desync While", G8.defs.aa_manuals), "antiaim_disable_Desync", "t", {function () return UI.get("antiaim_switch") end;}, nil, nil)
-        UI.new(G8.defs.groups.antiaim.main:switch("Legit AA Key", false), "antiaim_legit_key", "b", {function () return UI.get("antiaim_switch") end;}, nil, "Bind any key")
+        local aa_manual = UI.get_element("antiaim_manual"):create()
+        UI.new(aa_manual:selectable("Disable Yaw", G8.defs.aa_manuals), "antiaim_disable_yaw", "t", {function () return UI.get("antiaim_switch") end;}, nil, nil)
+        UI.new(aa_manual:selectable("Disable Desync", G8.defs.aa_manuals), "antiaim_disable_Desync", "t", {function () return UI.get("antiaim_switch") end;}, nil, nil)
+        UI.new(G8.defs.groups.antiaim.main:switch("Fix AA Without Use", false), "antiaim_fixaa", "b", {function () return UI.get("antiaim_switch") end;}, nil, nil)
 
 
         UI.new(G8.defs.groups.antiaim.builder:combo("Player Condition", G8.defs.player_states_aa), "antiaim_playercondition", "s", {function () return UI.get("antiaim_switch") end;}, nil, nil)
@@ -616,7 +630,7 @@ G8.funs = {
                     end)
                 end
             end;
-        }, nil)
+        }, "Bind a key")
         for _, state in pairs(G8.defs.player_states_aa) do
             UI.new(G8.defs.groups.antiaim.builder:switch("Override -> " .. state, false), "antiaim_override_" .. state, "b", {
                 function () return UI.get("antiaim_switch") end;
@@ -626,8 +640,14 @@ G8.funs = {
                     if state == "Global" then
                         UI.set("antiaim_override_Global", true)
                     end
+                    UI.visibility_handle()
                 end;
             }, nil)
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Backward Offset", -20, 20, 0, 1, "°"), "antiaim_backward_offset_" .. state, "i", {
+                function () return UI.get("antiaim_switch") end;
+                function () return UI.get("antiaim_playercondition") == state end;
+                function () return UI.get("antiaim_override_" .. state) end;
+            }, nil, nil)
             UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Pitch Mode", {"Defualt", "Jitter", "Random"}), "antiaim_pitchmode_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
@@ -662,6 +682,11 @@ G8.funs = {
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_pitchmode_" .. state) == "Random" end;
+            }, nil, nil)
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Yaw Base", {"Local View", "At Target"}), "antiaim_yawbase_" .. state, "s", {
+                function () return UI.get("antiaim_switch") end;
+                function () return UI.get("antiaim_playercondition") == state end;
+                function () return UI.get("antiaim_override_" .. state) end;
             }, nil, nil)
             UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Yaw Mode", G8.defs.yaw_modes), "antiaim_yawmode_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
@@ -714,21 +739,21 @@ G8.funs = {
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Left Limit", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_leftlimit_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Left", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_leftlimit_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_mode_" .. state) == "Static" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Right Limit", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_rightlimit_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Right", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_rightlimit_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_mode_" .. state) == "Static" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Step", 1, 64, 1, 1, "T"), "antiaim_bodyyaw_tick_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Step", 1, 64, 1, 1, "T"), "antiaim_bodyyaw_step_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
@@ -762,6 +787,18 @@ G8.funs = {
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Static" and UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Anti-Bruteforce" end;
+            }, nil, nil)
+            UI.new(G8.defs.groups.antiaim.builder:selectable("[" .. string_sub(state, 1, 1) .. "] Body Yaw Options", {"Avoid Overlap", "Jitter", "Randomize Jitter", "Anti Bruteforce"}), "antiaim_bodyyaw_option_" .. state, "t", {
+                function () return UI.get("antiaim_switch") end;
+                function () return UI.get("antiaim_playercondition") == state end;
+                function () return UI.get("antiaim_override_" .. state) end;
+                function () return UI.get("antiaim_bodyyaw_" .. state) end;
+            }, nil, nil)
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] LBY Option", {"Disabled", "Opposite", "Sway"}), "antiaim_lby_option_" .. state, "s", {
+                function () return UI.get("antiaim_switch") end;
+                function () return UI.get("antiaim_playercondition") == state end;
+                function () return UI.get("antiaim_override_" .. state) end;
+                function () return UI.get("antiaim_bodyyaw_" .. state) end;
             }, nil, nil)
             UI.new(G8.defs.groups.antiaim.xwaybuilder:slider("way_value_hide", 2, 64, 2), "antiaim_xway_value_" .. state, "i", {function () return false end;}, nil, nil)
             UI.new(G8.defs.groups.antiaim.bfbuilder:slider("bf_value_hide", 2, 64, 2), "antiaim_bf_value_" .. state, "i", {function () return false end;}, nil, nil)
@@ -848,6 +885,7 @@ G8.funs = {
                     if state == "Global" then
                         UI.set("fakelag_override_Global", true)
                     end
+                    UI.visibility_handle()
                 end;
             }, nil)
             UI.new(G8.defs.groups.fakelag.builder:combo("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Mode", G8.defs.fl_modes), "fakelag_mode_" .. state, "s", {
@@ -944,6 +982,8 @@ G8.funs = {
         UI.new(G8.defs.groups.visual.skeet_indicator:switch("Skeet Indicator", false), "visual_skeet", "b", nil, nil, nil)
         UI.new(UI.get_element("visual_skeet"):create():selectable("Indicators", {"Weapon State", "DMG", "HC", "FL", "DT", "HS", "FD", "DA", "LC"}), "visual_skeet_list", "t", { function () return UI.get("visual_skeet") end; }, nil, nil)
         UI.new(UI.get_element("visual_skeet"):create():slider("Y Offset", -500, 500, 0), "visual_skeet_offset", "i", { function () return UI.get("visual_skeet") end; }, nil, nil)
+
+        UI.new(G8.defs.groups.misc.logs:switch("Be Attacked Sound", false), "log_attacked_sound", "b", nil, nil, nil)
     end;
 
 
@@ -1035,6 +1075,10 @@ G8.defs = {
 
     gif = nil,
 
+    ffi_helper = {
+        PlaySound = utils_get_vfunc("engine.dll", "IEngineSoundClient003", 12, "void*(__thiscall*)(void*, const char*, float, int, int, float)"),
+    },
+
 
 	weapon_names = {
 	    "Global",
@@ -1081,7 +1125,7 @@ G8.defs = {
         "Air-Duck",
         "Fake-Duck",
         "On-Peek",
-        "Legit-AA"
+        "Exploit-Defensive",
     },
 
     player_states_fl = {
@@ -1094,7 +1138,6 @@ G8.defs = {
         "Air-Duck",
         "Fake-Duck",
         "On-Peek",
-        "Break-LC"
     },
 
     aa_manuals = {
@@ -1103,6 +1146,7 @@ G8.defs = {
         "Left",
         "Right",
     },
+
 
     yaw_modes = {
         "Disabled",
@@ -1227,6 +1271,14 @@ G8.vars = {
     desync_value = 0,
     aa_dir = 0,
     player_state = "",
+    last_player_state = "",
+    teleported = true,
+    speeds = {},
+    last_origin = 0,
+    breaking_lc = 0,
+    yaw_way = 1,
+    bf_way = 1,
+    be_attacked = false,
 }
 
 -- VARS END
@@ -1308,6 +1360,7 @@ G8.refs = {
 
     misc = {
         air_strafe              = ui_find("Miscellaneous", "Main", "Movement", "Air Strafe"),
+        fake_latency            = ui_find("Miscellaneous", "Main", "Other", "Fake Latency"),
     },
 }
 
@@ -1315,7 +1368,7 @@ G8.refs = {
 
 -- FEAT START
 
-G8.feat.updatevar = function ()
+G8.feat.updatevar = function (cmd)
     local lp = entity_get_local_player()
 
     if not lp or not lp:is_alive() then
@@ -1361,6 +1414,29 @@ G8.feat.updatevar = function ()
     else
         G8.vars.player_state = "Global"
     end
+
+
+
+    if cmd.choked_commands == 0 then
+        if not globals.is_in_game or not globals.is_connected or lp == nil then return end
+        if globals.choked_commands == 0 then
+            local origin = lp.m_vecOrigin
+            local teleport = 0
+
+            if G8.vars.last_origin ~= nil then
+                teleport = (origin - G8.vars.last_origin):length2d()
+                table.insert(G8.vars.speeds, #G8.vars.speeds, teleport)
+            end
+
+            G8.vars.last_origin = origin
+        end
+    end
+
+    if #G8.vars.speeds > 3 then
+        table.remove(G8.vars.speeds, 1)
+    end
+
+    G8.breaking_lc = G8.funs.get_average(G8.vars.speeds) > 65 and 1 or (rage_exploit:get() > 0.7 and 2 or 0)
 end
 
 
@@ -1404,13 +1480,27 @@ G8.feat.weapon_builder = function ()
     end
 end
 
+G8.feat.tp_onkey = function ()
+    if not G8.refs.ragebot.double_tap.switch:get() then return end
+    if not UI.get("ragebot_doubletap_tp") then return end
+
+    rage_exploit:force_teleport()
+    utils_execute_after(0.1, function()
+        UI.set("ragebot_doubletap_tp", false)
+    end)
+end
+
 G8.feat.clock_correction = function ()
     if not G8.refs.ragebot.double_tap.switch:get() then
         cvar.cl_clock_correction:int(1)
         return
     end
 
-    cvar.cl_clock_correction:int(0)
+    if not UI.get("ragebot_doubletap") then
+        return
+    end
+
+    cvar.cl_clock_correction:int(UI.get("ragebot_clock_correction") and 0 or 1)
 end
 
 G8.feat.dt_defensive = function ()
@@ -1424,7 +1514,7 @@ G8.feat.dt_defensive = function ()
     local me = entity_get_local_player()
     if not me or not me:is_alive() then return end
 
-    if (math.sqrt(me.m_vecVelocity.x ^ 2 + me.m_vecVelocity.y ^ 2) <= UI.get("ragebot_defensive_velocity")) then
+    if (G8.vars.velocity <= UI.get("ragebot_defensive_velocity")) then
         rage_exploit:allow_defensive(true)
     else
         rage_exploit:allow_defensive(false)
@@ -1444,17 +1534,282 @@ G8.feat.dt_tickbase = function ()
 end
 
 G8.feat.auto_tp = function ()
-    
+    if not G8.refs.ragebot.double_tap.switch:get() then return end
+
+    if not UI.get("ragebot_doubletap") or not UI.get("ragebot_autotp") then
+        return
+    end
+
+    local me = entity_get_local_player()
+    if not me or not me:is_alive() then return end
+    if not me:get_player_weapon() then return end
+    local weapon_index = me:get_player_weapon():get_weapon_index()
+
+    entity_get_players(true, false, function(ent)
+        if me["m_fFlags"] ~= 256 or me["m_fFlags"] ~= 262 and weapon_index ~= 40 then return end
+        if ent:is_visible() and ent:is_alive() then
+            if G8.vars.teleported then
+                rage_exploit:force_teleport()
+                G8.vars.teleported = false
+            end
+        else
+            G8.vars.teleported = true
+        end
+    end)
 end
 
+G8.feat.jump_scout = function ()
+    if not UI.get("ragebot_jumpscout") then
+        G8.refs.misc.air_strafe:override()
+    end
+
+    local me = entity_get_local_player()
+
+    if not me:is_alive() then
+        return
+    end
+
+    local weapon = me:get_player_weapon()
+
+    if weapon == nil then
+        return
+    end
+
+
+
+    if (is_button_down(0x41) or is_button_down(0x53) or is_button_down(0x44) or is_button_down(0x57)) or G8.vars.velocity > 5 then
+        G8.refs.misc.air_strafe:override(true)
+    else
+        if weapon:get_weapon_index() ~= 40 then
+            G8.refs.misc.air_strafe:override()
+        else
+            G8.refs.misc.air_strafe:override(false)
+        end
+    end
+end
+
+G8.feat.adaptive_backtrack = function ()
+    if not UI.get("ragebot_adaptive") then return end
+
+    local me = entity_get_local_player()
+    if not me or not me:is_alive() then return end
+    if not me:get_player_weapon() then return end
+    local weapon_index = me:get_player_weapon():get_weapon_index()
+
+    if weapon_index and weapon_index == 40 or weapon_index == 9 then
+        G8.refs.misc.fake_latency:set(150)
+    else
+        G8.refs.misc.fake_latency:set(math.min(math.max(0, 200 - utils_net_channel().latency[0]), 200))
+    end
+end
+--flag1
+G8.feat.anti_aim = function (cmd)
+    if not UI.get("antiaim_switch") then return end
+    if not entity_get_local_player() then return end
+
+
+    local function setvalues(tab)
+        G8.refs.antiaim.pitch:set(tab.pitch)
+        G8.refs.antiaim.yaw.mode:set(tab.yawmode)
+        G8.refs.antiaim.yaw.base:set(tab.yawbase)
+        G8.refs.antiaim.yaw.offset:set(tab.yawoffset)
+        G8.refs.antiaim.yaw.modifier:set(tab.yawmodifier)
+        G8.refs.antiaim.yaw.modifier_degree:set(tab.yawmodifier_offset)
+        G8.refs.antiaim.body_yaw.switch:set(tab.bodyyaw)
+        G8.refs.antiaim.body_yaw.left_limit:set(tab.bodyyaw_left)
+        G8.refs.antiaim.body_yaw.right_limit:set(tab.bodyyaw_right)
+        G8.refs.antiaim.body_yaw.options:set(tab.bodyyaw_options)
+        G8.refs.antiaim.body_yaw.lby_mode:set(tab.bodyyaw_lby)
+    end
+
+
+
+    local _data = {
+        pitch = G8.refs.antiaim.pitch:get(),
+        yawmode = G8.refs.antiaim.yaw.mode:get(),
+        yawbase = G8.refs.antiaim.yaw.base:get(),
+        yawoffset = G8.refs.antiaim.yaw.offset:get(),
+        yawmodifier = G8.refs.antiaim.yaw.modifier:get(),
+        yawmodifier_offset = G8.refs.antiaim.yaw.modifier_degree:get(),
+        bodyyaw = G8.refs.antiaim.body_yaw.switch:get(),
+        bodyyaw_left = G8.refs.antiaim.body_yaw.left_limit:get(),
+        bodyyaw_right = G8.refs.antiaim.body_yaw.right_limit:get(),
+        bodyyaw_options = G8.refs.antiaim.body_yaw.options:get(),
+        bodyyaw_lby = G8.refs.antiaim.body_yaw.lby_mode:get(),
+    }
+
+    local state = G8.vars.player_state
+    state = UI.get("antiaim_override_" .. state) and state or "Global"
+
+    if G8.refs.ragebot.double_tap.switch:get() and rage_exploit:get() ~= 1 and UI.get("antiaim_override_Exploit-Defensive") then
+        state = "Exploit-Defensive"
+    end
+
+    local me = entity_get_local_player()
+
+    if me.m_bInBombZone and cmd.in_use then
+
+    end
+    local offset = 0
+
+    local manual = UI.get("antiaim_manual")
+    if manual == "Forward" then
+        offset = 180
+    elseif manual == "Backward" then
+        offset = UI.get("antiaim_backward_offset_" .. state)
+    elseif manual == "Left" then
+        offset = -93
+    elseif manual == "Right" then
+        offset = 92
+    end
+
+    if UI.get("antiaim_pitchmode_" .. state) == "Defualt" then
+        _data.pitch = UI.get("antiaim_pitch_" .. state)
+    elseif UI.get("antiaim_pitchmode_" .. state) == "Jitter" then
+        if cmd.tickcount % UI.get("antiaim_pitchstep_" .. state) == 0 then
+            if  G8.refs.antiaim.pitch:get() == UI.get("antiaim_pitch1_" .. state) then
+                _data.pitch = UI.get("antiaim_pitch2_" .. state)
+            else
+                _data.pitch = UI.get("antiaim_pitch1_" .. state)
+            end
+        end
+    elseif UI.get("antiaim_pitchmode_" .. state) == "Random" then
+        local tab = UI.get("antiaim_randompitchs_" .. state)
+        if #tab == 0 then
+            _data.pitch = "Down"
+        elseif cmd.tickcount % UI.get("antiaim_pitchstep_" .. state) == 0 then
+            _data.pitch = tab[utils_random_int(1, #tab)]
+        end
+    end
+
+    _data.yawmode = "Backward"
+    _data.yawbase = UI.get("antiaim_yawbase_" .. state)
+
+    local yawmode = UI.get("antiaim_yawmode_" .. state)
+
+    if yawmode == "Disabled" then
+        _data.yawoffset = 0
+    elseif yawmode == "Jitter" then
+        if cmd.tickcount % UI.get("antiaim_yawstep_" .. state) then
+            if G8.refs.antiaim.yaw.offset:get() == UI.get("antiaim_yawright_" .. state) then
+                _data.yawoffset = -UI.get("antiaim_yawleft_" .. state)
+            else
+                _data.yawoffset = UI.get("antiaim_yawright_" .. state)
+            end
+        end
+    elseif yawmode == "Random" then
+        if cmd.tickcount % UI.get("antiaim_yawstep_" .. state) then
+            _data.yawoffset = utils_random_int(-UI.get("antiaim_yawleft_" .. state), UI.get("antiaim_yawright_" .. state))
+        end
+    elseif yawmode == "Spin" then
+        if cmd.tickcount % UI.get("antiaim_yawstep_" .. state) then
+            _data.yawoffset = G8.refs.antiaim.yaw.offset:get() + UI.get("antiaim_spinoffset_" .. state)
+            if _data.yawoffset > 180 then
+                _data.yawoffset = _data.yawoffset - 360
+            elseif _data.yawoffset < -180 then
+                _data.yawoffset = _data.yawoffset + 360
+            end
+        end
+    elseif yawmode == "X-Way" then
+        if G8.vars.yaw_way > UI.get("antiaim_xway_value_" .. state) then G8.vars.yaw_way = 1 end
+        _data.yawoffset = UI.get("antiaim_xway_" .. state .. "_" .. G8.vars.yaw_way)
+        G8.vars.yaw_way = G8.vars.yaw_way + 1
+    end
+
+    _data.yawmodifier = UI.get("antiaim_yawmodifier_" .. state)
+    _data.yawmodifier_offset = UI.get("antiaim_yawmodifier_offset_" .. state)
+
+    _data.bodyyaw = UI.get("antiaim_bodyyaw_" .. state)
+
+    local bodyyawmode = UI.get("antiaim_bodyyaw_mode_" .. state)
+    if bodyyawmode == "Static" then
+        _data.bodyyaw_left = UI.get("antiaim_bodyyaw_leftlimit_" .. state)
+        _data.bodyyaw_right = UI.get("antiaim_bodyyaw_rightlimit_" .. state)
+    elseif bodyyawmode == "Jitter" then
+        if cmd.tickcount % UI.get("antiaim_bodyyaw_step_" .. state) == 0 then
+            if G8.refs.antiaim.body_yaw.left_limit:get() == UI.get("antiaim_bodyyaw_leftlimitmin_" .. state) then
+                _data.bodyyaw_left = UI.get("antiaim_bodyyaw_leftlimitmax_" .. state)
+                _data.bodyyaw_right = UI.get("antiaim_bodyyaw_rightlimitmax_" .. state)
+            else
+                _data.bodyyaw_left = UI.get("antiaim_bodyyaw_leftlimitmin_" .. state)
+                _data.bodyyaw_right = UI.get("antiaim_bodyyaw_rightlimitmin_" .. state)
+            end
+        end
+    elseif bodyyawmode == "Fluctuate" then
+        if cmd.tickcount % UI.get("antiaim_bodyyaw_step_" .. state) == 0 then
+            if G8.refs.antiaim.body_yaw.left_limit:get() > UI.get("antiaim_bodyyaw_leftlimitmax_" .. state) then
+                _data.bodyyaw_left = UI.get("antiaim_bodyyaw_leftlimitmin_" .. state)
+            else
+                _data.bodyyaw_left = G8.refs.antiaim.body_yaw.left_limit:get() + 1
+            end
+
+            if G8.refs.antiaim.body_yaw.right_limit:get() > UI.get("antiaim_bodyyaw_rightlimitmax_" .. state) then
+                _data.bodyyaw_right = UI.get("antiaim_bodyyaw_rightlimitmin_" .. state)
+            else
+                _data.bodyyaw_right = G8.refs.antiaim.body_yaw.right_limit:get() + 1
+            end
+        end
+    elseif bodyyawmode == "Anti-Bruteforce" then
+        if G8.vars.be_attacked then
+            G8.vars.bf_way = G8.vars.bf_way + 1
+            G8.vars.be_attacked = false
+        end
+        if G8.vars.bf_way > UI.get("antiaim_bf_value_" .. state) then G8.vars.bf_way = 1 end
+        _data.bodyyaw_left = UI.get("antiaim_bf_way_" .. state .. "_" .. G8.vars.bf_way)
+        _data.bodyyaw_right = UI.get("antiaim_bf_way_" .. state .. "_" .. G8.vars.bf_way)
+    end
+
+    _data.bodyyaw_options = UI.get("antiaim_bodyyaw_option_" .. state)
+    _data.bodyyaw_lby = UI.get("antiaim_lby_option_" .. state)
+
+    _data.yawoffset = _data.yawoffset + offset
+    if _data.pitch == "Up" then _data.pitch = "Fake Up" end
+    setvalues(_data)
+end
+
+G8.feat.attacked = function (info)
+    local me = entity_get_local_player()
+    if not me or not me:is_alive() then return end
+    if info.userid == me:get_player_info().userid then return end
+    if me.m_iTeamNum == entity_get(info.userid, true).m_iTeamNum then return end
+    local shoter_position = entity_get(info.userid, true):get_eye_position()
+
+    if G8.funs.get_dist(shoter_position, vector(info.x, info.y, info.z), me:get_hitbox_position(1)) < 45 then
+        G8.vars.be_attacked = true
+        if UI.get("log_attacked_sound") then
+            G8.funs.playsound("sigma.wav", 100)
+        end
+    end
+end
+
+
+G8.feat.skeet_indicator = function ()
+
+end
 -- FEAT END
 
 
 -- REGS START
 
 G8.regs.createmove = function (cmd)
-    G8.feat.updatevar()
+    G8.feat.updatevar(cmd)
     G8.feat.weapon_builder()
+    G8.feat.tp_onkey()
+    G8.feat.clock_correction()
+    G8.feat.dt_defensive()
+    G8.feat.dt_tickbase()
+    G8.feat.auto_tp()
+    G8.feat.jump_scout()
+    G8.feat.adaptive_backtrack()
+    G8.feat.anti_aim(cmd)
+end
+
+G8.regs.bullet_impact = function (info)
+    G8.feat.attacked(info)
+end
+
+G8.regs.render = function ()
+    G8.feat.skeet_indicator()
 end
 
 G8.regs.shutdown = function ()
@@ -1462,25 +1817,28 @@ G8.regs.shutdown = function ()
         reset_function()
     end
 
-    for _, tab in pairs(G8.refs) do
+    local _reset
+
+    _reset = function (tab)
         if type(tab) == "table" then
             for _, obj in pairs(tab) do
-                obj:override()
-                obj:reset()
+                _reset(obj)
             end
         else
             tab:override()
-            tab:reset()
         end
     end
+
+    _reset(G8.refs)
+
 
     cvar.sv_maxusrcmdprocessticks:int(16)
 end
 
 G8.setup = function ()
+    utils_console_exec("clear")
     G8.funs.prepare_func()
     if not G8.defs.gif then
-        utils_console_exec("clear")
         utils_execute_after(0.2, function ()
             printraw([[
             ⠀⠀⠀⠀⠀⠀⠀⣨⣿⣷
@@ -1506,27 +1864,36 @@ G8.setup = function ()
     utils_execute_after(0.2, G8.funs.create_menu2)
     utils_execute_after(1, UI.visibility_handle)
 
-    events.createmove:set(G8.regs.createmove)
-    --events.render:set(G8.regs.render)
-    events.shutdown:set(G8.regs.shutdown)
+    -- events.createmove:set(G8.regs.createmove)
+    -- events
+    -- events.render:set(G8.regs.render)
+    -- events.shutdown:set(G8.regs.shutdown)
+
+    for event, element in pairs(G8.regs) do
+        events[tostring(event)]:set(element)
+    end
 
 
-    G8.funs.log([[
-        ⣠⣤⣤⣤⣤⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⠀⢰⡿⠋⠁⠀⠀⠈⠉⠙⠻⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⢀⣿⠇⠀⢀⣴⣶⡾⠿⠿⠿⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⣀⣀⣸⡿⠀⠀⢸⣿⣇⠀⠀⠀⠀⠀⠀⠙⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⣾⡟⠛⣿⡇⠀⠀⢸⣿⣿⣷⣤⣤⣤⣤⣶⣶⣿⠇⠀⠀⠀⠀⠀⠀⠀⣀⠀⠀
-⢀⣿⠀⢀⣿⡇⠀⠀⠀⠻⢿⣿⣿⣿⣿⣿⠿⣿⡏⠀⠀⠀⠀⢴⣶⣶⣿⣿⣿⣆
-⢸⣿⠀⢸⣿⡇⠀⠀⠀⠀⠀⠈⠉⠁⠀⠀⠀⣿⡇⣀⣠⣴⣾⣮⣝⠿⠿⠿⣻⡟
-⢸⣿⠀⠘⣿⡇⠀⠀⠀⠀⠀⠀⠀⣠⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠁⠉⠀
-⠸⣿⠀⠀⣿⡇⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠉⠀⠀⠀⠀
-⠀⠻⣷⣶⣿⣇⠀⠀⠀⢠⣼⣿⣿⣿⣿⣿⣿⣿⣛⣛⣻⠉⠁⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⢸⣿⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⢸⣿⣀⣀⣀⣼⡿⢿⣿⣿⣿⣿⣿⡿⣿⣿⣿
+    utils_execute_after(0.2, function ()
+        G8.funs.log("Welcome, " .. G8.defs.username)
+        printraw([[
+            ⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⣤⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+            ⠀⠀⠀⠀⠀⢰⡿⠋⠁⠀⠀⠈⠉⠙⠻⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+            ⠀⠀⠀⠀⢀⣿⠇⠀⢀⣴⣶⡾⠿⠿⠿⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+            ⠀⠀⣀⣀⣸⡿⠀⠀⢸⣿⣇⠀⠀⠀⠀⠀⠀⠙⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+            ⠀⣾⡟⠛⣿⡇⠀⠀⢸⣿⣿⣷⣤⣤⣤⣤⣶⣶⣿⠇⠀⠀⠀⠀⠀⠀⠀⣀⠀⠀
+            ⢀⣿⠀⢀⣿⡇⠀⠀⠀⠻⢿⣿⣿⣿⣿⣿⠿⣿⡏⠀⠀⠀⠀⢴⣶⣶⣿⣿⣿⣆
+            ⢸⣿⠀⢸⣿⡇⠀⠀⠀⠀⠀⠈⠉⠁⠀⠀⠀⣿⡇⣀⣠⣴⣾⣮⣝⠿⠿⠿⣻⡟
+            ⢸⣿⠀⠘⣿⡇⠀⠀⠀⠀⠀⠀⠀⣠⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠁⠉⠀
+            ⠸⣿⠀⠀⣿⡇⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠉⠀⠀⠀⠀
+            ⠀⠻⣷⣶⣿⣇⠀⠀⠀⢠⣼⣿⣿⣿⣿⣿⣿⣿⣛⣛⣻⠉⠁⠀⠀⠀⠀⠀⠀⠀
+            ⠀⠀⠀⠀⢸⣿⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀
+            ⠀⠀⠀⠀⢸⣿⣀⣀⣀⣼⡿⢿⣿⣿⣿⣿⣿⡿⣿⣿⣿
+            
+        ]])
+        G8.funs.playsound("[G8]LOAD.wav", 100)
+    end)
 
-G8.lua loaded
-    ]])
 end
 -- REGS END
 
@@ -1535,18 +1902,18 @@ G8.setup()
 
 
 
---⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⣤⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
---⠀⠀⠀⠀⠀⢰⡿⠋⠁⠀⠀⠈⠉⠙⠻⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
---⠀⠀⠀⠀⢀⣿⠇⠀⢀⣴⣶⡾⠿⠿⠿⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
---⠀⠀⣀⣀⣸⡿⠀⠀⢸⣿⣇⠀⠀⠀⠀⠀⠀⠙⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
---⠀⣾⡟⠛⣿⡇⠀⠀⢸⣿⣿⣷⣤⣤⣤⣤⣶⣶⣿⠇⠀⠀⠀⠀⠀⠀⠀⣀⠀⠀
---⢀⣿⠀⢀⣿⡇⠀⠀⠀⠻⢿⣿⣿⣿⣿⣿⠿⣿⡏⠀⠀⠀⠀⢴⣶⣶⣿⣿⣿⣆
---⢸⣿⠀⢸⣿⡇⠀⠀⠀⠀⠀⠈⠉⠁⠀⠀⠀⣿⡇⣀⣠⣴⣾⣮⣝⠿⠿⠿⣻⡟
---⢸⣿⠀⠘⣿⡇⠀⠀⠀⠀⠀⠀⠀⣠⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠁⠉⠀
---⠸⣿⠀⠀⣿⡇⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠉⠀⠀⠀⠀
---⠀⠻⣷⣶⣿⣇⠀⠀⠀⢠⣼⣿⣿⣿⣿⣿⣿⣿⣛⣛⣻⠉⠁⠀⠀⠀⠀⠀⠀⠀
---⠀⠀⠀⠀⢸⣿⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀
---⠀⠀⠀⠀⢸⣿⣀⣀⣀⣼⡿⢿⣿⣿⣿⣿⣿⡿⣿⣿⣿
+-- ⠀⠀⠀⠀⠀⠀⠀⣠⣤⣤⣤⣤⣤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+-- ⠀⠀⠀⠀⠀⢰⡿⠋⠁⠀⠀⠈⠉⠙⠻⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+-- ⠀⠀⠀⠀⢀⣿⠇⠀⢀⣴⣶⡾⠿⠿⠿⢿⣿⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+-- ⠀⠀⣀⣀⣸⡿⠀⠀⢸⣿⣇⠀⠀⠀⠀⠀⠀⠙⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+-- ⠀⣾⡟⠛⣿⡇⠀⠀⢸⣿⣿⣷⣤⣤⣤⣤⣶⣶⣿⠇⠀⠀⠀⠀⠀⠀⠀⣀⠀⠀
+-- ⢀⣿⠀⢀⣿⡇⠀⠀⠀⠻⢿⣿⣿⣿⣿⣿⠿⣿⡏⠀⠀⠀⠀⢴⣶⣶⣿⣿⣿⣆
+-- ⢸⣿⠀⢸⣿⡇⠀⠀⠀⠀⠀⠈⠉⠁⠀⠀⠀⣿⡇⣀⣠⣴⣾⣮⣝⠿⠿⠿⣻⡟
+-- ⢸⣿⠀⠘⣿⡇⠀⠀⠀⠀⠀⠀⠀⣠⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠁⠉⠀
+-- ⠸⣿⠀⠀⣿⡇⠀⠀⠀⠀⠀⣠⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠉⠀⠀⠀⠀
+-- ⠀⠻⣷⣶⣿⣇⠀⠀⠀⢠⣼⣿⣿⣿⣿⣿⣿⣿⣛⣛⣻⠉⠁⠀⠀⠀⠀⠀⠀⠀
+-- ⠀⠀⠀⠀⢸⣿⠀⠀⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠀⠀
+-- ⠀⠀⠀⠀⢸⣿⣀⣀⣀⣼⡿⢿⣿⣿⣿⣿⣿⡿⣿⣿⣿
 
 
 
