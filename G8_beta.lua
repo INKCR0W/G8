@@ -1,7 +1,6 @@
-
 -- EXTERN START
 
-local ui_create, ui_find, utils_create_interface, files_write, files_read, printdev, printraw, printchat, entity_get_local_player, utils_console_exec, render_load_image_from_file, common_add_notify, common_get_username, render_texture, render_world_to_ , is_button_down, render_screen_size, render_load_font, render_text, render_poly_blur, utils_execute_after, render_circle_outline, entity_get_game_rules, render_gradient, render_measure_text, rage_exploit, ui_get_icon, files_get_crc32, ui_get_alpha, common_reload_script, files_create_folder, math_sqrt, string_sub, utils_random_int, entity_get_players, utils_net_channel, utils_get_vfunc, bit_band, bit_lshift, entity_get, entity_get_entities, render_camera_angles = ui.create, ui.find, utils.create_interface, files.write, files.read, print_dev, print_raw, print_chat, entity.get_local_player, utils.console_exec, render.load_image_from_file, common.add_notify, common.get_username, render.texture, render.world_to_screen, common.is_button_down, render.screen_size, render.load_font, render.text, render.poly_blur, utils.execute_after, render.circle_outline, entity.get_game_rules, render.gradient, render.measure_text, rage.exploit, ui.get_icon, files.get_crc32, ui.get_alpha, common.reload_script, files.create_folder, math.sqrt, string.sub, utils.random_int, entity.get_players, utils.net_channel, utils.get_vfunc, bit.band, bit.lshift, entity.get, entity.get_entities, render.camera_angles
+local ui_create, ui_find, utils_create_interface, files_write, files_read, printdev, printraw, printchat, entity_get_local_player, utils_console_exec, render_load_image_from_file, common_add_notify, common_get_username, render_texture, render_world_to_ , is_button_down, render_screen_size, render_load_font, render_text, render_poly_blur, utils_execute_after, render_circle_outline, entity_get_game_rules, render_gradient, render_measure_text, rage_exploit, ui_get_icon, files_get_crc32, ui_get_alpha, common_reload_script, files_create_folder, math_sqrt, string_sub, utils_random_int, entity_get_players, utils_net_channel, utils_get_vfunc, bit_band, bit_lshift, entity_get, entity_get_entities, render_camera_angles, common_get_unixtime = ui.create, ui.find, utils.create_interface, files.write, files.read, print_dev, print_raw, print_chat, entity.get_local_player, utils.console_exec, render.load_image_from_file, common.add_notify, common.get_username, render.texture, render.world_to_screen, common.is_button_down, render.screen_size, render.load_font, render.text, render.poly_blur, utils.execute_after, render.circle_outline, entity.get_game_rules, render.gradient, render.measure_text, rage.exploit, ui.get_icon, files.get_crc32, ui.get_alpha, common.reload_script, files.create_folder, math.sqrt, string.sub, utils.random_int, entity.get_players, utils.net_channel, utils.get_vfunc, bit.band, bit.lshift, entity.get, entity.get_entities, render.camera_angles, common.get_unixtime
 
 local ffi = require ("ffi")
 local bit = require ("bit")
@@ -19,10 +18,11 @@ local G8 = {}
 local UI = { list = {} }
 
 
-UI.new = function (element, index, flag, conditions, callbacks, tooltip)
+UI.new = function (element, index, flag, conditions, callback, tooltip)
     assert(element, "Element is nil, index -> " .. (index or "nil"))
     assert(index, "Index is nil, element -> " .. (element:get_name() or "nil"))
-    assert(type(index) == "string", "Invalid type of index, index -> " .. (index or "nil"))
+    assert(type(index) == "string", "Invalid type of index, index -> " .. index)
+    assert((callback == nil) or (callback.func and callback.setup ~= nil), "Invalid callback, index -> " .. (index or "nil"))
     assert(function ()
         for _, e in pairs(UI.list) do
             if e.index == index then
@@ -45,13 +45,17 @@ UI.new = function (element, index, flag, conditions, callbacks, tooltip)
         return true
     end
 
-    UI.list[index].element:set_callback(function ()
-        UI.visibility_handle()
-        if not callbacks then return end
-        for _, func in pairs(callbacks) do
-            func()
-        end
-    end)
+    if callback then
+        UI.list[index].element:set_callback(function ()
+            UI.visibility_handle()
+            callback.func()
+        end, callback.setup)
+    else
+        UI.list[index].element:set_callback(function ()
+            UI.visibility_handle()
+        end)
+    end
+
     UI.visibility_handle()
 
     if tooltip and tooltip ~= "" then
@@ -508,9 +512,39 @@ G8.funs = {
         end
     end;
 
+    entity_list_pointer = ffi.cast("void***", utils_create_interface("client.dll", "VClientEntityList003"));
+    inside_updateCSA = function(thisptr, edx)
+        G8.vars.hooked_function(thisptr, edx)
+        if entity_get_local_player() == nil or ffi.cast('uintptr_t**', thisptr) == nil then return end
+        if not entity_get_local_player():is_alive() then return end
+
+        if UI.contains("animbreaker_list", "Pitch Onground") then
+            if ffi.cast("CCSGOPlayerAnimationState_534535_t**", ffi.cast("uintptr_t", thisptr) + 0x9960)[0].bHitGroundAnimation then
+                if G8.vars.on_ground then
+                    entity_get_local_player().m_flPoseParameter[12] = 0.5
+                end
+            end
+        end
+
+        entity_get_local_player().m_flPoseParameter[6] = UI.contains("animbreaker_list", "In Air") and 1 or 0
+
+        if UI.contains("animbreaker_list", "Leg Fucker") then
+            G8.refs.antiaim.misc.leg_movement:override("Sliding")
+            entity_get_local_player().m_flPoseParameter[0] = 0
+        end
+
+        if UI.contains("animbreaker_list", "Slow Walk") then
+            entity_get_local_player().m_flPoseParameter[9] = 0
+        end
+
+        if UI.contains("animbreaker_list", "Duck") then
+            entity_get_local_player().m_flPoseParameter[8] = 0
+        end
+    end;
+
     create_menu = function ()
         UI.new(G8.defs.groups.main.main:label("Welcome, " .. G8.funs.gradient_text(255, 8, 68, 255, 255, 177, 153, 255, G8.defs.username)), "main_label", "-", nil, nil, nil)
-        UI.new(G8.defs.groups.main.main:switch("Enable G8 GIF", false), "main_gif_switch", "m", nil, nil, "\aFF0000FFYOU SURE???")
+        UI.new(G8.defs.groups.main.main:switch("Enable G8 GIF", false), "main_gif_switch", "m", nil, nil, "FFYOU SURE???")
         UI.new(G8.defs.groups.main.texture:texture(G8.defs.gif, vector(338,338)), "main_gif", "-", {function () return UI.get("main_gif_switch") end,}, nil, nil)
 
         UI.new(G8.defs.groups.rage.ragebot:switch("Weapon Builder", false), "ragebot_switch", "b", nil, nil, nil)
@@ -590,7 +624,7 @@ G8.funs = {
         UI.new(G8.defs.groups.antiaim.main:switch("Invert Body Yaw Key", false), "antiaim_bodyyaw_invert", "b", {
             function () return UI.get("antiaim_switch") end;
         }, {
-            function ()
+            func = function ()
                 if UI.get("antiaim_bodyyaw_invert") then
                     G8.refs.antiaim.body_yaw.inverter:set(not G8.refs.antiaim.body_yaw.inverter:get())
                     utils_execute_after(0.3, function ()
@@ -598,6 +632,7 @@ G8.funs = {
                     end)
                 end
             end;
+            setup = false,
         }, "Bind a key")
 
         UI.new(G8.defs.groups.antiaim.bfbuilder:button("Random BF", G8.funs.random_bf), "antiaim_bf_random", "b", {
@@ -612,12 +647,13 @@ G8.funs = {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
             }, {
-                function ()
+                func = function ()
                     if state == "Global" then
                         UI.set("antiaim_override_Global", true)
                     end
                     UI.visibility_handle()
                 end;
+                setup = true
             }, nil)
             UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Backward Offset", -20, 20, 0, 1, "°"), "antiaim_backward_offset_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
@@ -861,12 +897,13 @@ G8.funs = {
                 function () return UI.get("fakelag_switch") end;
                 function () return UI.get("fakelag_playercondition") == state end;
             }, {
-                function ()
+                func = function ()
                     if state == "Global" then
                         UI.set("fakelag_override_Global", true)
                     end
                     UI.visibility_handle()
                 end;
+                setup = true
             }, nil)
             UI.new(G8.defs.groups.fakelag.builder:combo("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Mode", G8.defs.fl_modes), "fakelag_mode_" .. state, "s", {
                 function () return UI.get("fakelag_switch") end;
@@ -897,11 +934,12 @@ G8.funs = {
                 function () return UI.get("fakelag_override_" .. state) end;
                 function () return UI.get("fakelag_mode_" .. state) ~= "Static" and  UI.get("fakelag_mode_" .. state) ~= "Custom-Builder" and UI.get("fakelag_mode_" .. state) ~= "Always-Choke" end;
             }, {
-                function ()
+                func = function ()
                     if UI.get("fakelag_limitmin_" .. state) > UI.get("fakelag_limitmax_" .. state) then
                         UI.set("fakelag_limitmin_" .. state, UI.get("fakelag_limitmax_" .. state))
                     end
                 end;
+                setup = false
             }, nil)
             UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Limit Max", 1, 24, 0), "fakelag_limitmax_" .. state, "i", {
                 function () return UI.get("fakelag_switch") end;
@@ -909,11 +947,12 @@ G8.funs = {
                 function () return UI.get("fakelag_override_" .. state) end;
                 function () return UI.get("fakelag_mode_" .. state) ~= "Static" and  UI.get("fakelag_mode_" .. state) ~= "Custom-Builder" and UI.get("fakelag_mode_" .. state) ~= "Always-Choke" end;
             }, {
-                function ()
+                func = function ()
                     if UI.get("fakelag_limitmin_" .. state) > UI.get("fakelag_limitmax_" .. state) then
                         UI.set("fakelag_limitmin_" .. state, UI.get("fakelag_limitmax_" .. state))
                     end
                 end;
+                setup = false
             }, nil)
             UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Limit", 15, 24, 15), "fakelag_maxlimit_" .. state, "i", {
                 function () return UI.get("fakelag_switch") end;
@@ -947,14 +986,16 @@ G8.funs = {
         end
 
         UI.new(G8.defs.groups.visual.aspect_ratio:switch("Aspect Ratio", false), "visual_aspect_ratio", "i", nil, {
-            function ()
+            func = function ()
                 cvar.r_aspectratio:float(UI.get("visual_aspect_ratio") and UI.get("visual_aspect_value") / 10 or 0)
             end;
+            setup = false
         }, nil)
         UI.new(UI.get_element("visual_aspect_ratio"):create():slider("Ratio Value", 0, 20, 0, 0.1), "visual_aspect_value", "i", {function () return UI.get("visual_aspect_ratio") end;}, {
-            function ()
+            func = function ()
                 cvar.r_aspectratio:float(UI.get("visual_aspect_ratio") and UI.get("visual_aspect_value") / 10 or 0)
             end;
+            setup = false
         }, nil)
 
         UI.new(G8.defs.groups.visual.view_model:switch("View Model Changer", false), "visual_viewmodel_changer", "b", nil, nil, nil)
@@ -980,10 +1021,13 @@ G8.funs = {
         UI.new(UI.get_element("visual_skeet"):create():selectable("Indicators", {"G8", "Weapon State", "DMG", "HC", "FL", "DT", "HS", "FD", "DA", "LC"}), "visual_skeet_list", "t", { function () return UI.get("visual_skeet") end; }, nil, nil)
         UI.new(UI.get_element("visual_skeet"):create():slider("Y Offset", -500, 500, 0), "visual_skeet_offset", "i", { function () return UI.get("visual_skeet") end; }, nil, nil)
 
-        -- UI.new(G8.defs.groups.misc.logs:switch("Hit/Mis log", false), "log_hitmiss", "b", nil, nil, nil)
-        -- local tlog = UI.get_element("log_hitmiss"):create()
-        -- UI.new(tlog:combo("Language", {"zh_CN", "en_US"}), "log_language", "s", { function () return UI.get("log_hitmiss") end; }, nil, nil)
-        -- UI.new(tlog:selectable("Log Style", {"Chat", "Console", "Dev", "Screen"}))
+        UI.new(G8.defs.groups.misc.logs:switch("Hit/Mis log", false), "log_hitmiss", "b", nil, nil, nil)
+        local tlog = UI.get_element("log_hitmiss"):create()
+        UI.new(tlog:combo("Language", {"zh_CN", "en_US"}), "log_language", "s", { function () return UI.get("log_hitmiss") end; }, nil, nil)
+        UI.new(tlog:selectable("Log Style", {"Chat", "Console", "Screen"}), " log_style", "t", { function () return UI.get("log_hitmiss") end; }, nil, nil)
+
+        UI.new(G8.defs.groups.misc.unsafe_feature:selectable("Animbreaker", {"Pitch Onground", "In Air", "Leg Fucker", "Slow Walk", "Duck"}), "animbreaker_list", "t", nil, nil, nil)
+
         UI.new(G8.defs.groups.misc.logs:switch("Be Attacked Sound", false), "log_attacked_sound", "b", nil, nil, nil)
 
         UI.new(G8.defs.groups.config.global:button("Export Global Config To Clipboard", function ()
@@ -1025,6 +1069,12 @@ G8.funs = {
 }
 
 
+G8.funs.get_client_entity_fn = ffi.cast("GetClientEntity_4242425_t", G8.funs.entity_list_pointer[0][3]);
+G8.funs.get_entity_address = function(ent_index)
+    local addr = G8.funs.get_client_entity_fn(G8.funs.entity_list_pointer, ent_index)
+    return addr
+end;
+
 -- FUNS END
 
 
@@ -1047,6 +1097,79 @@ G8.defs = {
 
     ffi_helper = {
         PlaySound = utils_get_vfunc("engine.dll", "IEngineSoundClient003", 12, "void*(__thiscall*)(void*, const char*, float, int, int, float)"),
+    },
+
+    hitgroups = {
+        ["zh_CN"] = {
+            [0] = "全身",
+            [1] = "头部",
+            [2] = "胸部",
+            [3] = "胃部",
+            [4] = "左臂",
+            [5] = "右臂",
+            [6] = "左腿",
+            [7] = "右腿",
+            [10] = "未知",
+        },
+
+        ["en_US"] = {
+            [0] = "Systemic",
+            [1] = "Head",
+            [2] = "Chest",
+            [3] = "Stomach",
+            [4] = "L Arm",
+            [5] = "R Arm",
+            [6] = "L Leg",
+            [7] = "R Leg",
+            [10] = "UNKNON"
+        },
+    },
+--1白 7红 6绿         printraw("\aDD63E7[G8] \a868686» \aD5D5D5" .. string)
+    hitlogstr = {
+        ["zh_CN"] = {
+            ["Chat"] = {
+                ["hit"] = "\x01 \x06[G8]\x01 击中\x01 \x06%s\x01 的\x01 \x06%s\x01 伤害\x01 \x06%i(%i)\x01 剩余\x01 \x06%i\x01 命中率\x01 \x06%i\x01",
+                ["miss"] = "\x01 \x07[G8]\x01 空了\x01 \x07%s\x01 的\x01 \x07%s\x01 原因\x01 \x07%s\x01 命中率\x01 \x07%i\x01 回溯\x01 \x07%i\x01",
+            },
+
+            ["Console"] = {
+                ["hit"] = "\a90ED89[G8]\aFFFFFF 击中 \a90ED89%s\aFFFFFF 的 \a90ED89%s\aFFFFFF 伤害 \a90ED89%i(%i)\aFFFFFF 剩余 \a90ED89%i\aFFFFFF 命中率 \a90ED89%i\aFFFFFF 回溯 \a90ED89%i",
+                ["miss"] = "\aFF0000[G8]\aFFFFFF 空了 \aFF0000%s\aFFFFFF 的 \aFF0000%s\aFFFFFF 原因 \aFF0000%s\aFFFFFF 命中率 \aFF0000%i\aFFFFFF 回溯 \aFF0000%i",
+            },
+
+            ["Screen"] = {
+                ["hit"] = "击中 %s 的 %s 伤害 %i(%i) 剩余 %i 命中率 %i",
+                ["miss"] = "空了 %s 的 %s 原因 %s 命中率 %i 回溯 %i",
+            },
+        },
+
+        ["en_US"] = {
+            ["Chat"] = {
+                ["hit"] = "\x01 \x06[G8]\x01 Fired at\x01 \x06%s\x01's\x01 \x06%s\x01 dmg\x01 \x06%i(%i)\x01 remaining\x01 \x06%i\x01 hc\x01 \x06%i\x01",
+                ["miss"] = "\x01 \x07[G8]\x01 Miss\x01 \x07%s\x01's\x01 \x07%s\x01 due to\x01 \x07%s\x01 hc\x01 \x07%i\x01 bt\x01 \x07%i\x01",
+            },
+
+            ["Console"] = {
+                ["hit"] = "\a90ED89[G8]\aFFFFFF Fired at \a90ED89%s\aFFFFFF's \a90ED89%s\aFFFFFF dmg \a90ED89%i(%i)\aFFFFFF remaining \a90ED89%i\aFFFFFF hc \a90ED89%i\aFFFFFF bt \a90ED89%i",
+                ["miss"] = "\aFF0000[G8]\aFFFFFF Miss \aFF0000%s\aFFFFFF's \aFF0000%s\aFFFFFF due to \aFF0000%s\aFFFFFF hc \aFF0000%i\aFFFFFF bt \aFF0000%i\aFFFFFF",
+            },
+
+            ["Screen"] = {
+                ["hit"] = "Fired at %s's %s dmg %i(%i) remaining %i hc %i",
+                ["miss"] = "Miss %s's %s due to %s hc %i bt %i",
+            },
+        },
+    },
+
+    missreason = {
+        ["spread"] = "扩散",
+        ["correction"] = "解析",
+        ["misprediction"] = "预判错误",
+        ["prediction error"] = "预判失败",
+        ["lagcomp failure"] = "回溯失败",
+        ["unregistered shot"] = "未注册射击",
+        ["player death"] = "目标死亡",
+        ["death"] = "死亡",
     },
 
 
@@ -1250,6 +1373,8 @@ G8.vars = {
     last_value = 0,
     weapon_state = "Default",
     load_timer = 0,
+    log_list = {},
+    hooked_function = nil,
 }
 
 -- VARS END
@@ -1632,7 +1757,7 @@ G8.feat.adaptive_backtrack = function ()
     if weapon_index and weapon_index == 40 or weapon_index == 9 then
         G8.refs.misc.fake_latency:set(150)
     else
-        G8.refs.misc.fake_latency:set(math.min(math.max(0, 200 - utils_net_channel().latency[0]), 200))
+        G8.refs.misc.fake_latency:set(math.min(math.max(0, 200 - math.floor(math.max(0, utils_net_channel().latency[0] * 1000))), 200))
     end
 end
 
@@ -1675,7 +1800,7 @@ G8.feat.anti_aim = function (cmd)
     if state == "On-Peek" and not UI.get("antiaim_override_On-Peek") then state = "Running" end
     state = UI.get("antiaim_override_" .. state) and state or "Global"
 
-    if G8.refs.ragebot.double_tap.switch:get() and rage_exploit:get() ~= 1 and UI.get("antiaim_override_Exploit-Defensive") and not G8.vars.ok_teleported then
+    if G8.refs.ragebot.double_tap.switch:get() and rage_exploit:get() ~= 1 and UI.get("antiaim_override_Exploit-Defensive") and not G8.vars.ok_teleported and not G8.refs.antiaim.misc.fake_duck:get() then
         state = "Exploit-Defensive"
     end
 
@@ -2116,6 +2241,104 @@ G8.feat.skeet_indicator = function ()
         end
     end
 end
+--{"Chat", "Console", "Screen"}
+G8.feat.log_ack = function (info)
+    local language = UI.get("log_language")
+    if info.state then
+        local name = info.target:get_name()
+        local wanted_hitgroup = G8.defs.hitgroups[language][info.wanted_hitgroup]
+        local state = language == "en_US" and info.state or G8.defs.missreason[info.state]
+        local hitchance = info.hitchance
+        local backtrack = info.backtrack
+        if UI.contains(" log_style", "Chat") then
+            printchat(string.format(G8.defs.hitlogstr[language]["Chat"]["miss"], name, wanted_hitgroup, state, hitchance, backtrack))
+        end
+        if UI.contains(" log_style", "Console") then
+            printraw(string.format(G8.defs.hitlogstr[language]["Console"]["miss"], name, wanted_hitgroup, state, hitchance, backtrack))
+        end
+        if UI.contains(" log_style", "Screen") then
+            table.insert(G8.vars.log_list, {
+                text = string.format(G8.defs.hitlogstr[language]["Screen"]["miss"], name, wanted_hitgroup, state, hitchance, backtrack),
+            })
+        end
+    else
+        local name = info.target:get_name()
+        local hitgroups = G8.defs.hitgroups[language][info.hitgroup]
+        local damage = info.damage
+        local wanted_damage = info.wanted_damage
+        local remaining = info.target.m_iHealth
+        local hitchance = info.hitchance
+        local backtrack = info.backtrack
+        if UI.contains(" log_style", "Chat") then
+            printchat(string.format(G8.defs.hitlogstr[language]["Chat"]["hit"], name, hitgroups, damage, wanted_damage, remaining, hitchance))
+        end
+        if UI.contains(" log_style", "Console") then
+            printraw(string.format(G8.defs.hitlogstr[language]["Console"]["hit"], name, hitgroups, damage, wanted_damage, remaining, hitchance, backtrack))
+        end
+        if UI.contains(" log_style", "Screen") then
+            table.insert(G8.vars.log_list, {
+                text = string.format(G8.defs.hitlogstr[language]["Screen"]["hit"], name, hitgroups, damage, wanted_damage, remaining, hitchance),
+            })
+        end
+    end
+end
+
+
+
+G8.feat.log_render = function ()
+    if #G8.vars.log_list == 0 then return end
+    local base_x = G8.defs.screen_size.x / 2
+    local base_y = G8.defs.screen_size.y - 200
+    if #G8.vars.log_list > 10 then
+        for i = 1, #G8.vars.log_list - 10 do
+            if G8.vars.log_list[i].time then
+                if G8.vars.log_list[i].time > globals.tickcount + 5 then
+                    G8.vars.log_list[i].time = globals.tickcount + 5
+                end
+            else
+                G8.vars.log_list[i].time = globals.tickcount + 5
+            end
+        end
+    end
+    for i, obj in pairs(G8.vars.log_list) do
+        if not obj then return end
+        if not obj.init then
+            obj.time = globals.tickcount + 256
+            obj.init = true
+        end
+        local alpha
+        if obj.time - globals.tickcount > 240 then
+            alpha = math.floor(255 / (obj.time - globals.tickcount - 240))
+        elseif obj.time - globals.tickcount < 16 and obj.time - globals.tickcount > 0 then
+            alpha = math.floor(255 / (16 - obj.time + globals.tickcount))
+        elseif obj.time - globals.tickcount <= 0 then
+            table.remove(G8.vars.log_list, i)
+            return
+        else
+            alpha = 255
+        end
+        render_text(1, vector(base_x, base_y + i * 12), color(255, 255, 255, alpha), "c", obj.text)
+    end
+end
+
+G8.feat.animbreaker = function ()
+    if UI.get_element("animbreaker_list") and (#UI.get_element("animbreaker_list"):get() > 0) then
+        local local_player = entity_get_local_player()
+        if not local_player or not local_player:is_alive() then
+            return
+        end
+
+        local local_player_index = local_player:get_index()
+        local local_player_address = G8.funs.get_entity_address(local_player_index)
+
+        if not local_player_address or G8.vars.hooked_function then
+            return
+        end
+
+        local new_point = vmthook.new(local_player_address)
+        G8.vars.hooked_function = new_point.hook("void(__fastcall*)(void*, void*)", G8.funs.inside_updateCSA, 224)
+    end
+end
 
 -- FEAT END
 
@@ -2135,14 +2358,16 @@ G8.regs.createmove = function (cmd)
     -- G8.feat.fix_aa(cmd)
     G8.feat.anti_aim(cmd)
     G8.feat.fake_lag(cmd)
+    G8.feat.animbreaker()
 end
 
 G8.regs.aim_fire = function ()
     G8.feat.fl_fix_fire()
 end
 
-G8.regs.aim_ack = function ()
+G8.regs.aim_ack = function (info)
     G8.feat.fl_fix_ack()
+    G8.feat.log_ack(info)
 end
 
 G8.regs.weapon_fire = function (info)
@@ -2156,6 +2381,7 @@ end
 G8.regs.render = function ()
     G8.feat.view_model()
     G8.feat.skeet_indicator()
+    G8.feat.log_render()
 end
 
 G8.regs.shutdown = function ()
@@ -2209,6 +2435,7 @@ G8.setup = function ()
 
     G8.funs.create_menu()
     utils_execute_after(1, UI.visibility_handle)
+    cvar.r_aspectratio:float(UI.get("visual_aspect_ratio") and UI.get("visual_aspect_value") / 10 or 0)
 
 
     for event, element in pairs(G8.regs) do

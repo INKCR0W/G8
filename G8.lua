@@ -515,7 +515,7 @@ def = {
     };
 
     hitgroups_en = {
-        [0] = "",
+        [0] = "Systemic",
         [1] = "Head",
         [2] = "Chest",
         [3] = "Stomach",
