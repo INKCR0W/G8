@@ -573,15 +573,24 @@ G8.funs = {
             end
         end
 
+
         entity_get_local_player().m_flPoseParameter[6] = UI.contains("animbreaker_list", "In Air") and 1 or 0
 
         if UI.contains("animbreaker_list", "Leg Fucker") and G8.vars.velocity >= 130 then
-            G8.refs.antiaim.misc.leg_movement:override("Sliding")
-            entity_get_local_player().m_flPoseParameter[0] = 0
+            if UI.get("animbreaker_legfucker_style") == "Reserved side" then
+                G8.refs.antiaim.misc.leg_movement:set("Sliding")
+                entity_get_local_player().m_flPoseParameter[0] = 0
+            elseif UI.get("animbreaker_legfucker_style") == "Moon Walk" then
+                G8.refs.antiaim.misc.leg_movement:set("Walking")
+                entity_get_local_player().m_flPoseParameter[7] = 0
+            elseif UI.get("animbreaker_legfucker_style") == "Static" then
+                G8.refs.antiaim.misc.leg_movement:set("Walking")
+                entity_get_local_player().m_flPoseParameter[10] = 0
+            end
         end
 
         if UI.contains("animbreaker_list", "Slow Walk") and G8.vars.velocity < 130 then
-            G8.refs.antiaim.misc.leg_movement:override("Walking")
+            G8.refs.antiaim.misc.leg_movement:set("Walking")
             entity_get_local_player().m_flPoseParameter[9] = 0
         end
 
@@ -592,7 +601,8 @@ G8.funs = {
 
     create_menu = function ()
         UI.new(G8.defs.groups.main.main:label("Welcome, " .. G8.funs.gradient_text(255, 8, 68, 255, 255, 177, 153, 255, G8.defs.username)), "main_label", "-", nil, nil, nil)
-        UI.new(G8.defs.groups.main.main:switch("Enable G8 GIF", false), "main_gif_switch", "m", nil, nil, "FFYOU SURE???")
+        UI.new(G8.defs.groups.main.main:switch("Loaded Music", false), "main_loaded_sound", "b", nil, nil, nil)
+        UI.new(G8.defs.groups.main.main:switch("Enable G8 GIF", false), "main_gif_switch", "b", nil, nil, "FFYOU SURE???")
         UI.new(G8.defs.groups.main.texture:texture(G8.defs.gif, vector(338,338)), "main_gif", "-", {function () return UI.get("main_gif_switch") end,}, nil, nil)
 
         UI.new(G8.defs.groups.rage.ragebot:switch("Weapon Builder", false), "ragebot_switch", "b", nil, nil, nil)
@@ -1022,7 +1032,7 @@ G8.funs = {
                 function () return UI.get("fakelag_override_" .. state) end;
                 function () return UI.get("fakelag_mode_" .. state) == "Custom-Builder" end;
             }, nil, nil)
-            
+
             for i = 1, 20 do
                 UI.new(G8.defs.groups.fakelag.custom_builder:slider("[" .. string_sub(state, 1, 1) .. "] Tick " .. i , 1, 64, 0, 1, "T"), "fakelag_customtick_" .. state .. "_" .. i, "i", {
                     function () return UI.get("fakelag_switch") end;
@@ -1083,6 +1093,8 @@ G8.funs = {
         UI.new(tlog:selectable("Log Style", {"Chat", "Console", "Screen"}), " log_style", "t", { function () return UI.get("log_hitmiss") end; }, nil, nil)
 
         UI.new(G8.defs.groups.misc.unsafe_feature:selectable("Animbreaker", {"Pitch Onground", "In Air", "Leg Fucker", "Slow Walk", "Duck"}), "animbreaker_list", "t", nil, nil, "Unsafe: Red Trust Factor")
+        -- UI.new(G8.defs.groups.misc.unsafe_feature:combo("In Air Style", {"Static", "Moon Walk"}), "animbreaker_inair_style", "s", {function () return UI.contains("animbreaker_list", "In Air") end;}, nil, nil)
+        UI.new(G8.defs.groups.misc.unsafe_feature:combo("Leg Fucker Style", {"Reserved side", "Moon Walk", "Static"}), "animbreaker_legfucker_style", "s", {function () return UI.contains("animbreaker_list", "Leg Fucker") end;}, nil, nil)
 
         UI.new(G8.defs.groups.misc.logs:switch("Be Attacked Sound", false), "log_attacked_sound", "b", nil, nil, nil)
         UI.new(G8.defs.groups.misc.logs:switch("Be Attacked Talk Shit", false), "log_attacked_say", "b", nil, nil, nil)
@@ -2057,10 +2069,10 @@ G8.feat.fake_lag = function (cmd)
                 G8.vars.last_value = weapon["m_fLastShotTime"]
                 if G8.refs.antiaim.misc.fake_duck:get() then
                     if UI.get("fakelag_fix_fakeduck") then
-                        G8.vars.send_tick = 2
+                        G8.vars.send_tick = 4
                     end
                 else
-                    G8.vars.send_tick = 2
+                    G8.vars.send_tick = 4
                 end
             end
 
@@ -2078,10 +2090,10 @@ G8.feat.fake_lag = function (cmd)
                 G8.vars.last_value = weapon["m_iClip1"]
                 if G8.refs.antiaim.misc.fake_duck:get() then
                     if UI.get("fakelag_fix_fakeduck") then
-                        G8.vars.send_tick = 2
+                        G8.vars.send_tick = 4
                     end
                 else
-                    G8.vars.send_tick = 2
+                    G8.vars.send_tick = 4
                 end
             end
         end
@@ -2183,18 +2195,23 @@ G8.feat.fake_lag = function (cmd)
     end
 
     if not G8.refs.ragebot.double_tap.switch:get() then
-        if flmode == "Always-Choke" then
+        if flmode == "Always-Choke" and not entity_get_game_rules()["m_bFreezePeriod"] and (G8.vars.send_tick == 0) then
             cmd.send_packet = false
         else
-            if cmd.choked_commands < _data.limit then
+            if cmd.choked_commands < _data.limit and not entity_get_game_rules()["m_bFreezePeriod"] and (G8.vars.send_tick == 0) then
                 cmd.send_packet = false
             end
         end
     end
 
-    if G8.vars.send_tick > 0 then
-        cmd.send_packet = true
-        cmd.no_choke = true
+    if G8.vars.send_tick > 2 then
+        if not G8.refs.ragebot.double_tap.switch:get() and not G8.refs.ragebot.hide_shot.switch:get() then
+            cmd.no_choke = true
+            G8.refs.antiaim.body_yaw.switch:override(false)
+        end
+        G8.vars.send_tick = G8.vars.send_tick - 1
+    elseif G8.vars.send_tick > 0 and G8.vars.send_tick <= 2 then
+        cmd.send_packet = false
         G8.refs.antiaim.body_yaw.switch:override(false)
         G8.vars.send_tick = G8.vars.send_tick - 1
     else
@@ -2214,7 +2231,7 @@ G8.feat.fl_fix_fire = function ()
     if G8.refs.antiaim.misc.fake_duck:get() then return end
 
     if UI.get("fakelag_fix_switch") and UI.get("fakelag_fix_style") == "Aimbot" then
-        G8.vars.send_tick = 2
+        G8.vars.send_tick = 4
     end
 end
 
@@ -2222,7 +2239,7 @@ G8.feat.fl_fix_ack = function ()
     if not G8.refs.antiaim.misc.fake_duck:get() then return end
 
     if UI.get("fakelag_fix_switch")and UI.get("fakelag_fix_style") == "Aimbot" and UI.get("fakelag_fix_fakeduck") then
-        G8.vars.send_tick = 2
+        G8.vars.send_tick = 4
     end
 end
 
@@ -2231,10 +2248,10 @@ G8.feat.fl_fix_weaponfire = function (info)
     if UI.get("fakelag_fix_switch") and UI.get("fakelag_fix_style") == "Weapon Fire" then
         if G8.refs.antiaim.misc.fake_duck:get() then
             if UI.get("fakelag_fix_fakeduck") then
-                G8.vars.send_tick = 2
+                G8.vars.send_tick = 4
             end
         else
-            G8.vars.send_tick = 3
+            G8.vars.send_tick = 4
         end
     end
 end
@@ -2490,7 +2507,7 @@ G8.regs.shutdown = function ()
 end
 
 G8.setup = function ()
-    utils_console_exec("clear")
+    -- utils_console_exec("clear")
     G8.funs.prepare_func()
     if not files_get_crc32("csgo\\sound\\[G8]LOAD.wav") or not files_get_crc32("nl\\Crow\\imgs\\G8.gif") or not files_get_crc32("csgo\\sound\\[G8]attacked.wav") then
         utils_execute_after(0.2, function ()
@@ -2541,7 +2558,9 @@ G8.setup = function ()
             ⠀⠀⠀⠀⢸⣿⣀⣀⣀⣼⡿⢿⣿⣿⣿⣿⣿⡿⣿⣿⣿
             
         ]])
-        G8.funs.playsound("[G8]LOAD.wav", 100)
+        if UI.get("main_loaded_sound") then
+            G8.funs.playsound("[G8]LOAD.wav", 100)
+        end
     end)
 
 end
