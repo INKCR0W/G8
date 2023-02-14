@@ -1,6 +1,6 @@
 -- EXTERN START
 
-local ui_create, ui_find, utils_create_interface, files_write, files_read, printdev, printraw, printchat, entity_get_local_player, utils_console_exec, render_load_image_from_file, common_add_notify, common_get_username, render_texture, render_world_to_ , is_button_down, render_screen_size, render_load_font, render_text, render_poly_blur, utils_execute_after, render_circle_outline, entity_get_game_rules, render_gradient, render_measure_text, rage_exploit, ui_get_icon, files_get_crc32, ui_get_alpha, common_reload_script, files_create_folder, math_sqrt, string_sub, utils_random_int, entity_get_players, utils_net_channel, utils_get_vfunc, bit_band, bit_lshift, entity_get, entity_get_entities, render_camera_angles, common_get_unixtime, network_get, common_get_system_time = ui.create, ui.find, utils.create_interface, files.write, files.read, print_dev, print_raw, print_chat, entity.get_local_player, utils.console_exec, render.load_image_from_file, common.add_notify, common.get_username, render.texture, render.world_to_screen, common.is_button_down, render.screen_size, render.load_font, render.text, render.poly_blur, utils.execute_after, render.circle_outline, entity.get_game_rules, render.gradient, render.measure_text, rage.exploit, ui.get_icon, files.get_crc32, ui.get_alpha, common.reload_script, files.create_folder, math.sqrt, string.sub, utils.random_int, entity.get_players, utils.net_channel, utils.get_vfunc, bit.band, bit.lshift, entity.get, entity.get_entities, render.camera_angles, common.get_unixtime, network.get, common.get_system_time
+local ui_create, ui_find, utils_create_interface, files_write, files_read, printdev, printraw, printchat, entity_get_local_player, utils_console_exec, render_load_image_from_file, common_add_notify, common_get_username, render_texture, render_world_to_ , is_button_down, render_screen_size, render_load_font, render_text, render_poly_blur, utils_execute_after, render_circle_outline, entity_get_game_rules, render_gradient, render_measure_text, rage_exploit, ui_get_icon, files_get_crc32, ui_get_alpha, common_reload_script, files_create_folder, math_sqrt, utils_random_int, entity_get_players, utils_net_channel, utils_get_vfunc, bit_band, bit_lshift, entity_get, entity_get_entities, render_camera_angles, common_get_unixtime, network_get, common_get_system_time = ui.create, ui.find, utils.create_interface, files.write, files.read, print_dev, print_raw, print_chat, entity.get_local_player, utils.console_exec, render.load_image_from_file, common.add_notify, common.get_username, render.texture, render.world_to_screen, common.is_button_down, render.screen_size, render.load_font, render.text, render.poly_blur, utils.execute_after, render.circle_outline, entity.get_game_rules, render.gradient, render.measure_text, rage.exploit, ui.get_icon, files.get_crc32, ui.get_alpha, common.reload_script, files.create_folder, math.sqrt, utils.random_int, entity.get_players, utils.net_channel, utils.get_vfunc, bit.band, bit.lshift, entity.get, entity.get_entities, render.camera_angles, common.get_unixtime, network.get, common.get_system_time
 
 local ffi = require ("ffi")
 local bit = require ("bit")
@@ -8,8 +8,6 @@ local urlmon = ffi.load "UrlMon"
 local wininet = ffi.load "WinInet"
 local clipboard = require("neverlose/clipboard")
 local base64 = require("neverlose/base64")
--- local drag = require("neverlose/drag")
--- local smoothy = require("neverlose/smoothy")
 local get_lc = require("neverlose/get_lc")
 local json = require("neverlose/better_json")
 local G8 = {}
@@ -24,8 +22,8 @@ UI.new = function (element, index, flag, conditions, callback, tooltip)
     assert(type(index) == "string", "Invalid type of index, index -> " .. index)
     assert((callback == nil) or (callback.func and callback.setup ~= nil), "Invalid callback, index -> " .. (index or "nil"))
     assert(function ()
-        for _, e in pairs(UI.list) do
-            if e.index == index then
+        for idx, _ in pairs(UI.list) do
+            if idx == index then
                 return false
             end
         end
@@ -121,7 +119,8 @@ ffi.cdef[[
     void* VirtualAlloc(void* lpAddress, unsigned long dwSize, unsigned long  flAllocationType, unsigned long flProtect);
     int VirtualProtect(void* lpAddress, unsigned long dwSize, unsigned long flNewProtect, unsigned long* lpflOldProtect);
 
-    typedef struct {
+    typedef struct
+    {
         unsigned short wYear;
         unsigned short wMonth;
         unsigned short wDayOfWeek;
@@ -200,68 +199,88 @@ ffi.cdef[[
         float        flMaxPitch; // 0x33C
         int            iAnimsetVersion; // 0x340
     } CCSGOPlayerAnimationState_534535_t;
+
+    typedef struct
+    {
+        char  pad_0000[20];
+        int m_nOrder; //0x0014
+        int m_nSequence; //0x0018
+        float m_flPrevCycle; //0x001C
+        float m_flWeight; //0x0020
+        float m_flWeightDeltaRate; //0x0024
+        float m_flPlaybackRate; //0x0028
+        float m_flCycle; //0x002C
+        void *m_pOwner; //0x0030
+        char  pad_0038[4]; //0x0034
+    } CAnimationLayer;
 ]]
 
-
-local vmthook = { list = {} }
-
-vmthook.copy = function(void, source, length)
-    return ffi.copy(ffi.cast("void*", void), ffi.cast("const void*", source), length)
+local ffi_helpers = {}
+ffi_helpers.entity_list_pointer = ffi.cast('void***', utils.create_interface('client.dll', 'VClientEntityList003'))
+ffi_helpers.get_client_entity_fn = ffi.cast('GetClientEntity_4242425_t', ffi_helpers.entity_list_pointer[0][3])
+ffi_helpers.get_entity_address = function(ent_index)
+	local addr = ffi_helpers.get_client_entity_fn(ffi_helpers.entity_list_pointer, ent_index)
+	return addr
 end
+ffi_helpers.buff = { free = {} }
+ffi_helpers.hook_helper = {
+	copy = function(dst, src, len)
+		return ffi.copy(ffi.cast('void*', dst), ffi.cast('const void*', src), len)
+	end,
+	virtual_protect = function(lpAddress, dwSize, flNewProtect, lpflOldProtect)
+		return ffi.C.VirtualProtect(ffi.cast('void*', lpAddress), dwSize, flNewProtect, lpflOldProtect)
+	end,
+	virtual_alloc = function(lpAddress, dwSize, flAllocationType, flProtect, blFree)
+		local alloc = ffi.C.VirtualAlloc(lpAddress, dwSize, flAllocationType, flProtect)
+		if blFree then
+			table.insert(ffi_helpers.buff.free, function()
+				ffi.C.VirtualFree(alloc, 0, 0x8000)
+			end)
+		end
+		return ffi.cast('intptr_t', alloc)
+	end
+}
+ffi_helpers.vmt_hook = {
+	hooks = {},
+	new = function(vt)
+		local new_hook = {}
+		local org_func = {}
+		local old_prot = ffi.new('unsigned long[1]')
+		local virtual_table = ffi.cast('intptr_t**', vt)[0]
+		new_hook.this = virtual_table
+		new_hook.hookMethod = function(cast, func, method)
+			org_func[method] = virtual_table[method]
+			ffi_helpers.hook_helper.virtual_protect(virtual_table + method, 4, 0x4, old_prot)
 
-vmthook.virtual_protect = function(point, size, new_protect, old_protect)
-    return ffi.C.VirtualProtect(ffi.cast("void*", point), size, new_protect, old_protect)
-end
+			virtual_table[method] = ffi.cast('intptr_t', ffi.cast(cast, func))
+			ffi_helpers.hook_helper.virtual_protect(virtual_table + method, 4, old_prot[0], old_prot)
 
-vmthook.virtual_alloc = function(point, size, allocation_type, protect)
-    local alloc = ffi.C.VirtualAlloc(point, size, allocation_type, protect)
-    return ffi.cast("intptr_t", alloc)
-end
+			return ffi.cast(cast, org_func[method])
+		end
+		new_hook.unHookMethod = function(method)
+			ffi_helpers.hook_helper.virtual_protect(virtual_table + method, 4, 0x4, old_prot)
+			local alloc_addr = ffi_helpers.hook_helper.virtual_alloc(nil, 5, 0x1000, 0x40, false)
+			local trampoline_bytes = ffi.new('uint8_t[?]', 5, 0x90)
 
-vmthook.new = function(address)
-    local cache = {
-        data = {},
-        org_func = {},
+			trampoline_bytes[0] = 0xE9
+			ffi.cast('int32_t*', trampoline_bytes + 1)[0] = org_func[method] - tonumber(alloc_addr) - 5
 
-        old_protection = ffi.new("unsigned long[1]"),
-        virtual_table = ffi.cast("intptr_t**", address)[0]
-    }
+			ffi_helpers.hook_helper.copy(alloc_addr, trampoline_bytes, 5)
+			virtual_table[method] = ffi.cast('intptr_t', alloc_addr)
 
-    cache.data.hook = function(cast, __function, method)
-        cache.org_func[method] = cache.virtual_table[method]
-        vmthook.virtual_protect(cache.virtual_table + method, 4, 0x4, cache.old_protection)
+			ffi_helpers.hook_helper.virtual_protect(virtual_table + method, 4, old_prot[0], old_prot)
+			org_func[method] = nil
+		end
+		new_hook.unHookAll = function()
+			for method, func in pairs(org_func) do
+				new_hook.unHookMethod(method)
+			end
+		end
 
-        cache.virtual_table[method] = ffi.cast("intptr_t", ffi.cast(cast, __function))
-        vmthook.virtual_protect(cache.virtual_table + method, 4, cache.old_protection[0], cache.old_protection)
-
-        return ffi.cast(cast, cache.org_func[method])
-    end
-
-    cache.data.unhook = function(method)
-        vmthook.virtual_protect(cache.virtual_table + method, 4, 0x4, cache.old_protection)
-
-        local alloc_addr = vmthook.virtual_alloc(nil, 5, 0x1000, 0x40)
-        local trampoline_bytes = ffi.new("uint8_t[?]", 5, 0x90)
-
-        trampoline_bytes[0] = 0xE9
-        ffi.cast("int32_t*", trampoline_bytes + 1)[0] = cache.org_func[method] - tonumber(alloc_addr) - 5
-
-        vmthook.copy(alloc_addr, trampoline_bytes, 5)
-        cache.virtual_table[method] = ffi.cast("intptr_t", alloc_addr)
-
-        vmthook.virtual_protect(cache.virtual_table + method, 4, cache.old_protection[0], cache.old_protection)
-        cache.org_func[method] = nil
-    end
-
-    cache.data.unhook_all = function()
-        for method, _ in pairs(cache.org_func) do
-            cache.data.unhook(method)
-        end
-    end
-
-    table.insert(vmthook.list, cache.data.unhook_all)
-    return cache.data
-end
+		table.insert(ffi_helpers.vmt_hook.hooks, new_hook.unHookAll)
+		return new_hook
+	end,
+}
 
 -- EXTERN END
 
@@ -272,8 +291,108 @@ G8 = {
     refs = {},
     feat = {},
     regs = {},
+    ui_handler = {},
 }
 
+
+-- UI HANDLER START
+G8.ui_handler.list = {}
+
+G8.ui_handler.TAB = ui_create("HIDE TAB", "UI POSITIONS")
+
+G8.ui_handler.moving = nil
+G8.ui_handler.mouse = nil
+
+G8.ui_handler.new = function (index, position)
+    assert(type(index) == "string", "Invalid type of index, index -> " .. (index or "nil"))
+    assert(index ~= "nil", "Invalid index -> don't use 'nil'")
+    assert(type(position) == "userdata" or type(position) == "nil", "Invalid type of position, index -> " .. (index or "nil"))
+    assert(function ()
+        for idx, _ in pairs(G8.ui_handler.list) do
+            if idx == index then
+                return false
+            end
+        end
+        return true
+    end, "Defined index, index -> " .. (index or "nil"))
+
+    UI.new(G8.ui_handler.TAB:slider("visual_" .. index .. "_x", 1, G8.defs.screen_size.x), "visual_solusui_" .. index .. "_x", "i", {function ()
+        return false
+    end;}, nil, nil)
+    UI.new(G8.ui_handler.TAB:slider("visual_" .. index .. "_y", 1, G8.defs.screen_size.y), "visual_solusui_" .. index .. "_y", "i", {function ()
+        return false
+    end;}, nil, nil)
+
+    G8.ui_handler.list[index] = vector(1, 1)
+end
+
+G8.ui_handler.update = function (index, x, y)
+    -- assert(type(index) == "string", "Invalid type of index, index -> " .. (index or "nil"))
+    -- assert(function ()
+    --     for idx, _ in pairs(G8.ui_handler.list) do
+    --         if idx == index then
+    --             return true
+    --         end
+    --     end
+    --     return false
+    -- end, "Unknow index, index -> " .. (index or "nil"))
+
+    if not x or not y then return nil end
+
+    G8.ui_handler.list[index] = vector(x, y)
+end
+
+G8.ui_handler.get = function (index)
+    -- assert(type(index) == "string", "Invalid type of index, index -> " .. (index or "nil"))
+    -- assert(function ()
+    --     for idx, _ in pairs(G8.ui_handler.list) do
+    --         if idx == index then
+    --             return true
+    --         end
+    --     end
+    --     return false
+    -- end, "Unknow index, index -> " .. (index or "nil"))
+
+    return vector(UI.get("visual_solusui_" .. index .. "_x"), UI.get("visual_solusui_" .. index .. "_y"))
+end
+
+G8.ui_handler.render_callback = function ()
+    local left_down = common.is_button_down(0x01)
+    if left_down and ui_get_alpha() > 0.3 then
+        local mouse = ui.get_mouse_position()
+        if G8.ui_handler.moving == nil then
+            for index, volume in pairs(G8.ui_handler.list) do
+                local left = UI.get("visual_solusui_" .. index .. "_x")
+                local right = UI.get("visual_solusui_" .. index .. "_x") + volume.x
+                local top = UI.get("visual_solusui_" .. index .. "_y")
+                local bottom = UI.get("visual_solusui_" .. index .. "_y") + volume.y
+                if mouse.x > left and mouse.x < right and mouse.y > top and mouse.y < bottom then
+                    G8.ui_handler.mouse = mouse
+                    G8.ui_handler.moving = index
+                    return
+                else
+                    G8.ui_handler.moving = "nil"
+                end
+            end
+        elseif G8.ui_handler.moving ~= nil and G8.ui_handler.moving ~= "nil" then
+            local move_x = mouse.x - G8.ui_handler.mouse.x
+            local move_y = mouse.y - G8.ui_handler.mouse.y
+            UI.set("visual_solusui_" .. G8.ui_handler.moving .. "_x", UI.get("visual_solusui_" .. G8.ui_handler.moving .. "_x") + move_x)
+            UI.set("visual_solusui_" .. G8.ui_handler.moving .. "_y", UI.get("visual_solusui_" .. G8.ui_handler.moving .. "_y") + move_y)
+            G8.ui_handler.mouse = mouse
+        end
+    else
+        G8.ui_handler.moving = nil
+        G8.ui_handler.mouse = nil
+    end
+end
+
+-- G8.ui_handler.mouse_callback = function ()
+--     if G8.ui_handler.moving ~= nil then
+--         return false
+--     end
+-- end
+-- UI HANDLER END
 
 
 -- FUNS START
@@ -355,11 +474,11 @@ G8.funs = {
 
     indicator = function(scolor, string, xtazst, yoffset)
         if (string == nil or string == "" or string == " ") then return end
-        render_gradient(vector(20 + (render_measure_text(G8.defs.fonts.calibriba, nil, string).x / 2), G8.defs.screen_size.y - 548 + xtazst * 37 + yoffset), vector(15 , (G8.defs.screen_size.y - 548 + xtazst * 37) + 28 + yoffset), color(0, 0, 0, 60), color(0, 0, 0, 0), color(0, 0, 0, 60), color(0, 0, 0, 0), 0)
-        render_gradient(vector(20 + (render_measure_text(G8.defs.fonts.calibriba, nil, string).x / 2), G8.defs.screen_size.y - 548 + xtazst * 37 + yoffset), vector(25 + (render_measure_text(G8.defs.fonts.calibriba, nil, string).x), (G8.defs.screen_size.y - 548 + xtazst * 37) + 28 + yoffset), color(0, 0, 0, 60), color(0, 0, 0, 0), color(0, 0, 0, 60), color(0, 0, 0, 0), 0)
+        render_gradient(vector(20 + (render_measure_text(G8.defs.fonts.calibri24ba, nil, string).x / 2), G8.defs.screen_size.y - 548 + xtazst * 37 + yoffset), vector(15 , (G8.defs.screen_size.y - 548 + xtazst * 37) + 28 + yoffset), color(0, 0, 0, 60), color(0, 0, 0, 0), color(0, 0, 0, 60), color(0, 0, 0, 0), 0)
+        render_gradient(vector(20 + (render_measure_text(G8.defs.fonts.calibri24ba, nil, string).x / 2), G8.defs.screen_size.y - 548 + xtazst * 37 + yoffset), vector(25 + (render_measure_text(G8.defs.fonts.calibri24ba, nil, string).x), (G8.defs.screen_size.y - 548 + xtazst * 37) + 28 + yoffset), color(0, 0, 0, 60), color(0, 0, 0, 0), color(0, 0, 0, 60), color(0, 0, 0, 0), 0)
 
-        render_text(G8.defs.fonts.calibriba, vector(21, (G8.defs.screen_size.y - 543) + xtazst * 37 + yoffset), color(0, 0, 0, (scolor.a - 105) >=0 and (scolor.a - 105) or 0), "", string)
-        render_text(G8.defs.fonts.calibriba, vector(20, (G8.defs.screen_size.y - 544) + xtazst * 37 + yoffset), scolor, "", string)
+        render_text(G8.defs.fonts.calibri24ba, vector(21, (G8.defs.screen_size.y - 543) + xtazst * 37 + yoffset), color(0, 0, 0, (scolor.a - 105) >=0 and (scolor.a - 105) or 0), "", string)
+        render_text(G8.defs.fonts.calibri24ba, vector(20, (G8.defs.screen_size.y - 544) + xtazst * 37 + yoffset), scolor, "", string)
     end;
 
     log = function(string)
@@ -404,7 +523,7 @@ G8.funs = {
         UI.set("antiaim_xway_value_" .. state, UI.get("antiaim_xway_value_" .. state) + 1)
         local ways = UI.get("antiaim_xway_value_" .. state)
 
-        UI.new(G8.defs.groups.antiaim.xwaybuilder:slider("[" .. string_sub(state, 1, 1) .. "] Way " .. ways, -180, 180, 0), "antiaim_xway_" .. state .. "_" .. ways, "i", {
+        UI.new(G8.defs.groups.antiaim.xwaybuilder:slider("[" .. string.sub(state, 1, 1) .. "] Way " .. ways, -180, 180, 0), "antiaim_xway_" .. state .. "_" .. ways, "i", {
             function () return UI.get("antiaim_switch") end;
             function () return UI.get("antiaim_playercondition") == state end;
             function () return UI.get("antiaim_override_" .. state) end;
@@ -499,6 +618,10 @@ G8.funs = {
         return sum / #tab;
     end;
 
+    lerp = function(time,a,b)
+        return a * (1 - time) + b * time
+    end;
+
     clr_lerp = function (time, color1, color2)
         return color(color1.r * (1 - time) + color2.r * time, color1.b * (1 - time) + color2.b * time, color1.g * (1 - time) + color2.g * time, color1.a * (1 - time) + color2.a * time)
     end;
@@ -565,43 +688,60 @@ G8.funs = {
 
     entity_list_pointer = ffi.cast("void***", utils_create_interface("client.dll", "VClientEntityList003"));
     inside_updateCSA = function(thisptr, edx)
+        if ffi.cast('uintptr_t', thisptr) == nil then
+            return
+        end
+
         G8.vars.hooked_function(thisptr, edx)
-        if entity_get_local_player() == nil or ffi.cast('uintptr_t**', thisptr) == nil then return end
-        if not entity_get_local_player():is_alive() then return end
 
-        G8.refs.antiaim.misc.leg_movement:override()
+        local entity_localplayer_address = ffi_helpers.get_entity_address(entity.get_local_player():get_index())
 
-        if UI.contains("animbreaker_list", "Pitch Onground") then
-            if ffi.cast("CCSGOPlayerAnimationState_534535_t**", ffi.cast("uintptr_t", thisptr) + 0x9960)[0].bHitGroundAnimation then
-                if not G8.vars.is_jumping then
-                    entity_get_local_player().m_flPoseParameter[12] = 0.5
+        if ffi.cast('uintptr_t', thisptr) == entity_localplayer_address then
+            local lp = entity_get_local_player()
+
+            G8.refs.antiaim.misc.leg_movement:override()
+
+            if UI.contains("animbreaker_list", "Pitch Onground") then
+                if ffi.cast("CCSGOPlayerAnimationState_534535_t**", ffi.cast("uintptr_t", thisptr) + 0x9960)[0].bHitGroundAnimation then
+                    if not G8.vars.is_jumping then
+                        lp.m_flPoseParameter[12] = 0.5
+                    end
                 end
             end
-        end
 
-
-        entity_get_local_player().m_flPoseParameter[6] = UI.contains("animbreaker_list", "In Air") and 1 or 0
-
-        if UI.contains("animbreaker_list", "Leg Fucker") and G8.vars.velocity >= 130 then
-            if UI.get("animbreaker_legfucker_style") == "Reserved side" then
-                G8.refs.antiaim.misc.leg_movement:override("Sliding")
-                entity_get_local_player().m_flPoseParameter[0] = 0
-            elseif UI.get("animbreaker_legfucker_style") == "Moon Walk" then
-                G8.refs.antiaim.misc.leg_movement:override("Walking")
-                entity_get_local_player().m_flPoseParameter[7] = 0
-            elseif UI.get("animbreaker_legfucker_style") == "Static" then
-                G8.refs.antiaim.misc.leg_movement:override("Walking")
-                entity_get_local_player().m_flPoseParameter[10] = 0
+            if UI.contains("animbreaker_list", "In Air") and UI.get("animbreaker_inair_style") == "Static" then
+                lp.m_flPoseParameter[6] = 1
             end
-        end
 
-        if UI.contains("animbreaker_list", "Slow Walk") and G8.vars.velocity < 130 then
-            G8.refs.antiaim.misc.leg_movement:override("Walking")
-            entity_get_local_player().m_flPoseParameter[9] = 0
-        end
+            if UI.contains("animbreaker_list", "Leg Fucker") and G8.vars.velocity >= 130 and not G8.vars.is_jumping then
+                if UI.get("animbreaker_legfucker_style") == "Reserved side" then
+                    G8.refs.antiaim.misc.leg_movement:override("Sliding")
+                    lp.m_flPoseParameter[0] = 0
+                elseif UI.get("animbreaker_legfucker_style") == "Moon Walk" then
+                    G8.refs.antiaim.misc.leg_movement:override("Walking")
+                    lp.m_flPoseParameter[7] = 0
+                elseif UI.get("animbreaker_legfucker_style") == "Static" then
+                    G8.refs.antiaim.misc.leg_movement:override("Walking")
+                    lp.m_flPoseParameter[10] = 0
+                end
+            end
 
-        if UI.contains("animbreaker_list", "Duck") then
-            entity_get_local_player().m_flPoseParameter[8] = 0
+            if UI.contains("animbreaker_list", "Slow Walk") and G8.vars.velocity < 130 then
+                G8.refs.antiaim.misc.leg_movement:override("Walking")
+                lp.m_flPoseParameter[9] = 0
+            end
+
+            if UI.contains("animbreaker_list", "Duck") then
+                lp.m_flPoseParameter[8] = 0
+            end
+
+            if UI.contains("animbreaker_list", "In Air") and UI.get("animbreaker_inair_style") == "Moon Walk" and G8.vars.on_ground_ticks == 0 then
+                ffi.cast('CAnimationLayer**', ffi.cast('uintptr_t', entity_localplayer_address) + 10640)[0][6].m_flWeight = 1
+            end
+
+            if UI.contains("animbreaker_list", "Move Lean") and G8.vars.player_state ~= "Crouching" then
+                ffi.cast('CAnimationLayer**', ffi.cast('uintptr_t', entity_localplayer_address) + 10640)[0][12].m_flWeight = UI.get("animbreaker_movelean_force") / 100
+            end
         end
     end;
 
@@ -727,164 +867,164 @@ G8.funs = {
                     function () return UI.get("antiaim_override_" .. state) end;
                     }, nil, nil)
             end
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Backward Offset", -20, 20, 0, 1, "°"), "antiaim_backward_offset_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Backward Offset", -20, 20, 0, 1, "°"), "antiaim_backward_offset_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Pitch Mode", {"Default", "Jitter", "Random"}), "antiaim_pitchmode_" .. state, "s", {
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] Pitch Mode", {"Default", "Jitter", "Random"}), "antiaim_pitchmode_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Pitch", {"Disabled", "Down", "Fake Down", "Fake Up"}), "antiaim_pitch_" .. state, "s", {
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] Pitch", {"Disabled", "Down", "Fake Down", "Fake Up"}), "antiaim_pitch_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_pitchmode_" .. state) == "Default" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Pitch Step", 1, 32, 1, 1, "T"), "antiaim_pitchstep_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Pitch Step", 1, 32, 1, 1, "T"), "antiaim_pitchstep_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_pitchmode_" .. state) ~= "Default" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Pitch 1", {"Disabled", "Down", "Fake Down", "Fake Up"}), "antiaim_pitch1_" .. state, "s", {
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] Pitch 1", {"Disabled", "Down", "Fake Down", "Fake Up"}), "antiaim_pitch1_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_pitchmode_" .. state) == "Jitter" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Pitch 2", {"Disabled", "Down", "Fake Down", "Fake Up"}), "antiaim_pitch2_" .. state, "s", {
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] Pitch 2", {"Disabled", "Down", "Fake Down", "Fake Up"}), "antiaim_pitch2_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_pitchmode_" .. state) == "Jitter" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:selectable("[" .. string_sub(state, 1, 1) .. "] Random Pitchs", {"Disabled", "Down", "Fake Down", "Fake Up"}), "antiaim_randompitchs_" .. state, "t", {
+            UI.new(G8.defs.groups.antiaim.builder:selectable("[" .. string.sub(state, 1, 1) .. "] Random Pitchs", {"Disabled", "Down", "Fake Down", "Fake Up"}), "antiaim_randompitchs_" .. state, "t", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_pitchmode_" .. state) == "Random" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Yaw Base", {"Local View", "At Target"}), "antiaim_yawbase_" .. state, "s", {
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] Yaw Base", {"Local View", "At Target"}), "antiaim_yawbase_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Yaw Mode", G8.defs.yaw_modes), "antiaim_yawmode_" .. state, "s", {
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] Yaw Mode", G8.defs.yaw_modes), "antiaim_yawmode_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Yaw Step", 1, 64, 1, 1, "T"), "antiaim_yawstep_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Yaw Step", 1, 64, 1, 1, "T"), "antiaim_yawstep_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_yawmode_" .. state) == "Jitter" or UI.get("antiaim_yawmode_" .. state) == "Random" or UI.get("antiaim_yawmode_" .. state) == "X-Way" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Yaw Left", 0, 180, 0, 1, "°"), "antiaim_yawleft_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Yaw Left", 0, 180, 0, 1, "°"), "antiaim_yawleft_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_yawmode_" .. state) == "Jitter" or UI.get("antiaim_yawmode_" .. state) == "Random" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Yaw Right", 0, 180, 0, 1, "°"), "antiaim_yawright_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Yaw Right", 0, 180, 0, 1, "°"), "antiaim_yawright_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_yawmode_" .. state) == "Jitter" or UI.get("antiaim_yawmode_" .. state) == "Random" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Spin Offset", -180, 180, 0, 1, "°"), "antiaim_spinoffset_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Spin Offset", -180, 180, 0, 1, "°"), "antiaim_spinoffset_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_yawmode_" .. state) == "Spin" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Yaw Modifier", {"Disabled", "Center", "Offset", "Random", "Spin"}), "antiaim_yawmodifier_" .. state, "s", {
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] Yaw Modifier", {"Disabled", "Center", "Offset", "Random", "Spin"}), "antiaim_yawmodifier_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
             }, nil, nil)
-            UI.new(UI.get_element("antiaim_yawmodifier_" .. state):create():slider("[" .. string_sub(state, 1, 1) .. "] Offset", -180, 180, 0, 1, "°"), "antiaim_yawmodifier_offset_" .. state, "i", {
+            UI.new(UI.get_element("antiaim_yawmodifier_" .. state):create():slider("[" .. string.sub(state, 1, 1) .. "] Offset", -180, 180, 0, 1, "°"), "antiaim_yawmodifier_offset_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_yawmodifier_" .. state) ~= "Disabled" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:switch("[" .. string_sub(state, 1, 1) .. "] Body Yaw", false), "antiaim_bodyyaw_" .. state, "b", {
+            UI.new(G8.defs.groups.antiaim.builder:switch("[" .. string.sub(state, 1, 1) .. "] Body Yaw", false), "antiaim_bodyyaw_" .. state, "b", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] Body Yaw Mode", {"Static", "Jitter", "Random", "Fluctuate", "Anti-Bruteforce"}), "antiaim_bodyyaw_mode_" .. state, "s", {
-                function () return UI.get("antiaim_switch") end;
-                function () return UI.get("antiaim_playercondition") == state end;
-                function () return UI.get("antiaim_override_" .. state) end;
-                function () return UI.get("antiaim_bodyyaw_" .. state) end;
-            }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Left", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_leftlimit_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] Body Yaw Mode", {"Static", "Jitter", "Random", "Fluctuate", "Anti-Bruteforce"}), "antiaim_bodyyaw_mode_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
-                function () return UI.get("antiaim_bodyyaw_mode_" .. state) == "Static" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Right", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_rightlimit_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Body Yaw Left", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_leftlimit_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_mode_" .. state) == "Static" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Step", 1, 64, 1, 1, "T"), "antiaim_bodyyaw_step_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Body Yaw Right", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_rightlimit_" .. state, "i", {
+                function () return UI.get("antiaim_switch") end;
+                function () return UI.get("antiaim_playercondition") == state end;
+                function () return UI.get("antiaim_override_" .. state) end;
+                function () return UI.get("antiaim_bodyyaw_" .. state) end;
+                function () return UI.get("antiaim_bodyyaw_mode_" .. state) == "Static" end;
+            }, nil, nil)
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Body Yaw Step", 1, 64, 1, 1, "T"), "antiaim_bodyyaw_step_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Static" and UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Anti-Bruteforce" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Left Min", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_leftlimitmin_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Body Yaw Left Min", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_leftlimitmin_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Static" and UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Anti-Bruteforce" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Left Max", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_leftlimitmax_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Body Yaw Left Max", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_leftlimitmax_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Static" and UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Anti-Bruteforce" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Right Min", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_rightlimitmin_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Body Yaw Right Min", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_rightlimitmin_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Static" and UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Anti-Bruteforce" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string_sub(state, 1, 1) .. "] Body Yaw Right Max", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_rightlimitmax_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.builder:slider("[" .. string.sub(state, 1, 1) .. "] Body Yaw Right Max", 1, 60, 1, 1, "°"), "antiaim_bodyyaw_rightlimitmax_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Static" and UI.get("antiaim_bodyyaw_mode_" .. state) ~= "Anti-Bruteforce" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:selectable("[" .. string_sub(state, 1, 1) .. "] Body Yaw Options", {"Avoid Overlap", "Jitter", "Randomize Jitter", "Anti Bruteforce"}), "antiaim_bodyyaw_option_" .. state, "t", {
+            UI.new(G8.defs.groups.antiaim.builder:selectable("[" .. string.sub(state, 1, 1) .. "] Body Yaw Options", {"Avoid Overlap", "Jitter", "Randomize Jitter", "Anti Bruteforce"}), "antiaim_bodyyaw_option_" .. state, "t", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string_sub(state, 1, 1) .. "] LBY Option", {"Disabled", "Opposite", "Sway"}), "antiaim_lby_option_" .. state, "s", {
+            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] LBY Option", {"Disabled", "Opposite", "Sway"}), "antiaim_lby_option_" .. state, "s", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.xwaybuilder:slider("[" .. string_sub(state, 1, 1) .. "] X-ways", 2, 20, 2), "antiaim_xway_value_" .. state, "i", {
+            UI.new(G8.defs.groups.antiaim.xwaybuilder:slider("[" .. string.sub(state, 1, 1) .. "] X-ways", 2, 20, 2), "antiaim_xway_value_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
                 function () return UI.get("antiaim_override_" .. state) end;
@@ -892,7 +1032,7 @@ G8.funs = {
             }, nil, nil)
 
             for i = 1, 20 do
-                UI.new(G8.defs.groups.antiaim.xwaybuilder:slider("[" .. string_sub(state, 1, 1) .. "] Way " .. i, -180, 180, 0), "antiaim_xway_" .. state .. "_" .. i, "i", {
+                UI.new(G8.defs.groups.antiaim.xwaybuilder:slider("[" .. string.sub(state, 1, 1) .. "] Way " .. i, -180, 180, 0), "antiaim_xway_" .. state .. "_" .. i, "i", {
                     function () return UI.get("antiaim_switch") end;
                     function () return UI.get("antiaim_playercondition") == state end;
                     function () return UI.get("antiaim_override_" .. state) end;
@@ -910,7 +1050,7 @@ G8.funs = {
             }, nil, nil)
 
             for i = 1, 20 do
-                UI.new(G8.defs.groups.antiaim.bfbuilder:slider("[" .. string_sub(state, 1, 1) .. "] Limit " .. i, 0, 60, 0), "antiaim_bf_way_" .. state .. "_" .. i, "i", {
+                UI.new(G8.defs.groups.antiaim.bfbuilder:slider("[" .. string.sub(state, 1, 1) .. "] Limit " .. i, 0, 60, 0), "antiaim_bf_way_" .. state .. "_" .. i, "i", {
                     function () return UI.get("antiaim_switch") end;
                     function () return UI.get("antiaim_playercondition") == state end;
                     function () return UI.get("antiaim_override_" .. UI.get("antiaim_playercondition")) end;
@@ -977,30 +1117,30 @@ G8.funs = {
                 end;
                 setup = true
             }, nil)
-            UI.new(G8.defs.groups.fakelag.builder:combo("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Mode", G8.defs.fl_modes), "fakelag_mode_" .. state, "s", {
+            UI.new(G8.defs.groups.fakelag.builder:combo("[" .. string.sub(state, 1, 1) .. "] Fake-Lag Mode", G8.defs.fl_modes), "fakelag_mode_" .. state, "s", {
                 function () return UI.get("fakelag_switch") end;
                 function () return UI.get("fakelag_playercondition") == state end;
                 function () return UI.get("fakelag_override_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Limit", 1, 24, 1), "fakelag_limit_" .. state, "i", {
-                function () return UI.get("fakelag_switch") end;
-                function () return UI.get("fakelag_playercondition") == state end;
-                function () return UI.get("fakelag_override_" .. state) end;
-                function () return UI.get("fakelag_mode_" .. state) == "Static" end;
-            }, nil, nil)
-            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Variability", 0, 24, 0), "fakelag_variability_" .. state, "i", {
+            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string.sub(state, 1, 1) .. "] Fake-Lag Limit", 1, 24, 1), "fakelag_limit_" .. state, "i", {
                 function () return UI.get("fakelag_switch") end;
                 function () return UI.get("fakelag_playercondition") == state end;
                 function () return UI.get("fakelag_override_" .. state) end;
                 function () return UI.get("fakelag_mode_" .. state) == "Static" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Step", 1, 64, 0, 1, "T"), "fakelag_step_" .. state, "i", {
+            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string.sub(state, 1, 1) .. "] Fake-Lag Variability", 0, 24, 0), "fakelag_variability_" .. state, "i", {
+                function () return UI.get("fakelag_switch") end;
+                function () return UI.get("fakelag_playercondition") == state end;
+                function () return UI.get("fakelag_override_" .. state) end;
+                function () return UI.get("fakelag_mode_" .. state) == "Static" end;
+            }, nil, nil)
+            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string.sub(state, 1, 1) .. "] Fake-Lag Step", 1, 64, 0, 1, "T"), "fakelag_step_" .. state, "i", {
                 function () return UI.get("fakelag_switch") end;
                 function () return UI.get("fakelag_playercondition") == state end;
                 function () return UI.get("fakelag_override_" .. state) end;
                 function () return UI.get("fakelag_mode_" .. state) ~= "Static" and  UI.get("fakelag_mode_" .. state) ~= "Custom-Builder" and UI.get("fakelag_mode_" .. state) ~= "Always-Choke" end;
             }, nil, nil)
-            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Limit Min", 1, 24, 0), "fakelag_limitmin_" .. state, "i", {
+            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string.sub(state, 1, 1) .. "] Fake-Lag Limit Min", 1, 24, 0), "fakelag_limitmin_" .. state, "i", {
                 function () return UI.get("fakelag_switch") end;
                 function () return UI.get("fakelag_playercondition") == state end;
                 function () return UI.get("fakelag_override_" .. state) end;
@@ -1013,7 +1153,7 @@ G8.funs = {
                 end;
                 setup = false
             }, nil)
-            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Limit Max", 1, 24, 0), "fakelag_limitmax_" .. state, "i", {
+            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string.sub(state, 1, 1) .. "] Fake-Lag Limit Max", 1, 24, 0), "fakelag_limitmax_" .. state, "i", {
                 function () return UI.get("fakelag_switch") end;
                 function () return UI.get("fakelag_playercondition") == state end;
                 function () return UI.get("fakelag_override_" .. state) end;
@@ -1026,7 +1166,7 @@ G8.funs = {
                 end;
                 setup = false
             }, nil)
-            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string_sub(state, 1, 1) .. "] Fake-Lag Limit", 15, 24, 15), "fakelag_maxlimit_" .. state, "i", {
+            UI.new(G8.defs.groups.fakelag.builder:slider("[" .. string.sub(state, 1, 1) .. "] Fake-Lag Limit", 15, 24, 15), "fakelag_maxlimit_" .. state, "i", {
                 function () return UI.get("fakelag_switch") end;
                 function () return UI.get("fakelag_playercondition") == state end;
                 function () return UI.get("fakelag_override_" .. state) end;
@@ -1040,14 +1180,14 @@ G8.funs = {
             }, nil, nil)
 
             for i = 1, 20 do
-                UI.new(G8.defs.groups.fakelag.custom_builder:slider("[" .. string_sub(state, 1, 1) .. "] Tick " .. i , 1, 64, 0, 1, "T"), "fakelag_customtick_" .. state .. "_" .. i, "i", {
+                UI.new(G8.defs.groups.fakelag.custom_builder:slider("[" .. string.sub(state, 1, 1) .. "] Tick " .. i , 1, 64, 0, 1, "T"), "fakelag_customtick_" .. state .. "_" .. i, "i", {
                     function () return UI.get("fakelag_switch") end;
                     function () return UI.get("fakelag_playercondition") == state end;
                     function () return UI.get("fakelag_override_" .. state) end;
                     function () return UI.get("fakelag_mode_" .. state) == "Custom-Builder" end;
                     function () return UI.get("fakelag_custom_value_" .. state) >= i end;
                 }, nil, nil)
-                UI.new(G8.defs.groups.fakelag.custom_builder:slider("[" .. string_sub(state, 1, 1) .. "] Limit " .. i, 1, 24, 1), "fakelag_customlimit_" .. state .. "_" .. i, "i", {
+                UI.new(G8.defs.groups.fakelag.custom_builder:slider("[" .. string.sub(state, 1, 1) .. "] Limit " .. i, 1, 24, 1), "fakelag_customlimit_" .. state .. "_" .. i, "i", {
                     function () return UI.get("fakelag_switch") end;
                     function () return UI.get("fakelag_playercondition") == state end;
                     function () return UI.get("fakelag_override_" .. state) end;
@@ -1084,8 +1224,12 @@ G8.funs = {
         UI.new(viewmodel_changer:slider("Z", -15, 15, 0), "viewmodel_z", "i", {
             function () return UI.get("visual_viewmodel_changer") end;
         }, nil, nil)
---, "Spectators", "Keybinds"
-        UI.new(G8.defs.groups.visual.solus_ui:selectable("Solus UI", {"Watermark"}), "visual_solusui", "t", nil, nil, nil)
+
+        UI.new(G8.defs.groups.visual.solus_ui:selectable("Solus UI", {"Watermark", "Keybinds", "Spectators"}), "visual_solusui", "t", nil, nil, nil)
+        UI.new(G8.defs.groups.visual.solus_ui:combo("Language", {"zh_CN", "en_US"}), "visual_solusui_language", "s", { function () return UI.contains("visual_solusui", "Keybinds") end; }, nil, nil)
+        UI.new(G8.defs.groups.visual.solus_ui:switch("Lock Mouse", false), "visual_lockmouse", "b", nil, nil, nil)
+        G8.ui_handler.new("Keybinds", vector(100, 100))
+        G8.ui_handler.new("Spectators", vector(100, 100))
 
         UI.new(G8.defs.groups.visual.crosshair_indicator:switch("Crosshair Indicators", false), "visual_crosshair", "b", nil, nil, nil)
         UI.new(G8.defs.groups.visual.crosshair_indicator:switch("Crosshair Damage", false), "visual_crosshair_dmg", "b", nil, nil, nil)
@@ -1099,9 +1243,10 @@ G8.funs = {
         UI.new(tlog:combo("Language", {"zh_CN", "en_US"}), "log_language", "s", { function () return UI.get("log_hitmiss") end; }, nil, nil)
         UI.new(tlog:selectable("Log Style", {"Chat", "Console", "Screen"}), " log_style", "t", { function () return UI.get("log_hitmiss") end; }, nil, nil)
 
-        UI.new(G8.defs.groups.misc.unsafe_feature:selectable("Animbreaker", {"Pitch Onground", "In Air", "Leg Fucker", "Slow Walk", "Duck"}), "animbreaker_list", "t", nil, nil, "Unsafe: Red Trust Factor")
-        -- UI.new(G8.defs.groups.misc.unsafe_feature:combo("In Air Style", {"Static", "Moon Walk"}), "animbreaker_inair_style", "s", {function () return UI.contains("animbreaker_list", "In Air") end;}, nil, nil)
+        UI.new(G8.defs.groups.misc.unsafe_feature:selectable("Animbreaker", {"Pitch Onground", "In Air", "Leg Fucker", "Slow Walk", "Duck", "Move Lean"}), "animbreaker_list", "t", nil, nil, "Unsafe: Red Trust Factor")
+        UI.new(G8.defs.groups.misc.unsafe_feature:combo("In Air Style", {"Static", "Moon Walk"}), "animbreaker_inair_style", "s", {function () return UI.contains("animbreaker_list", "In Air") end;}, nil, nil)
         UI.new(G8.defs.groups.misc.unsafe_feature:combo("Leg Fucker Style", {"Reserved side", "Moon Walk", "Static"}), "animbreaker_legfucker_style", "s", {function () return UI.contains("animbreaker_list", "Leg Fucker") end;}, nil, nil)
+        UI.new(G8.defs.groups.misc.unsafe_feature:slider("Move Lean Force", 1, 100, 50, 1, "%"), "animbreaker_movelean_force", "i", {function () return UI.contains("animbreaker_list", "Move Lean") end;}, nil, nil)
 
         UI.new(G8.defs.groups.misc.logs:switch("Be Attacked Sound", false), "log_attacked_sound", "b", nil, nil, nil)
         UI.new(G8.defs.groups.misc.logs:switch("Be Attacked Talk Shit", false), "log_attacked_say", "b", nil, nil, nil)
@@ -1157,11 +1302,6 @@ G8.funs = {
 }
 
 
-G8.funs.get_client_entity_fn = ffi.cast("GetClientEntity_4242425_t", G8.funs.entity_list_pointer[0][3]);
-G8.funs.get_entity_address = function(ent_index)
-    local addr = G8.funs.get_client_entity_fn(G8.funs.entity_list_pointer, ent_index)
-    return addr
-end;
 
 -- FUNS END
 
@@ -1169,14 +1309,17 @@ end;
 -- DEFS START
 
 G8.defs = {
-    default_cfg = "eyJhbnRpYWltX3NwaW5vZmZzZXRfT24tUGVlayI6MCwgImFudGlhaW1fcGl0Y2htb2RlX09uLVBlZWsiOiJEZWZhdWx0IiwgImFudGlhaW1feWF3bW9kaWZpZXJfT24tUGVlayI6IlNwaW4iLCAiYW50aWFpbV94d2F5X0Fpci1EdWNrXzE0IjowLCAiYW50aWFpbV9waXRjaF9Pbi1QZWVrIjoiRG93biIsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9Pbi1QZWVrIjoxNSwgImFudGlhaW1feHdheV9BaXItRHVja18xNSI6MCwgImFudGlhaW1fcGl0Y2hzdGVwX09uLVBlZWsiOjEsICJhbnRpYWltX2JvZHl5YXdfT24tUGVlayI6ZmFsc2UsICJhbnRpYWltX3h3YXlfT24tUGVla180IjowLCAiYW50aWFpbV9waXRjaDFfT24tUGVlayI6IkRpc2FibGVkIiwgImFudGlhaW1fYm9keXlhd19tb2RlX09uLVBlZWsiOiJTdGF0aWMiLCAiYW50aWFpbV94d2F5X09uLVBlZWtfNSI6MCwgImFudGlhaW1feHdheV9BaXItRHVja18xNyI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRfT24tUGVlayI6MSwgImFudGlhaW1feHdheV9Pbi1QZWVrXzYiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTgiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdF9Pbi1QZWVrIjoxLCAiYW50aWFpbV9iYWNrd2FyZF9vZmZzZXRfTWFudWFsLUFBIjowLCAiYW50aWFpbV94d2F5X0Fpci1EdWNrXzE5IjowLCAiYW50aWFpbV9ib2R5eWF3X3N0ZXBfT24tUGVlayI6MSwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fT24tUGVlayI6MSwgImFudGlhaW1fYmZfdmFsdWVfQWlyLUR1Y2siOjIsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1pbl9Pbi1QZWVrIjoxLCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfMSI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWF4X09uLVBlZWsiOjEsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18yIjowLCAiYW50aWFpbV9waXRjaF9HbG9iYWwiOiJEb3duIiwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzMiOjAsICJhbnRpYWltX2xieV9vcHRpb25fT24tUGVlayI6IkRpc2FibGVkIiwgImFudGlhaW1fcGl0Y2hzdGVwX0dsb2JhbCI6MSwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzQiOjAsICJhbnRpYWltX3h3YXlfdmFsdWVfT24tUGVlayI6MiwgImFudGlhaW1fcGl0Y2gxX0dsb2JhbCI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzUiOjAsICJhbnRpYWltX3h3YXlfT24tUGVla18xIjowLCAiYW50aWFpbV9waXRjaDJfR2xvYmFsIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMiI6MCwgImFudGlhaW1fcmFuZG9tcGl0Y2hzX0dsb2JhbCI6e30sICJhbnRpYWltX3h3YXlfT24tUGVla18zIjowLCAiYW50aWFpbV9vdmVycmlkZV9BaXItRHVjayI6dHJ1ZSwgImFudGlhaW1feWF3YmFzZV9HbG9iYWwiOiJBdCBUYXJnZXQiLCAiYW50aWFpbV9iYWNrd2FyZF9vZmZzZXRfQWlyLUR1Y2siOjAsICJhbnRpYWltX3lhd21vZGVfR2xvYmFsIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9waXRjaG1vZGVfQWlyLUR1Y2siOiJEZWZhdWx0IiwgImFudGlhaW1feWF3c3RlcF9HbG9iYWwiOjEsICJhbnRpYWltX3BpdGNoMV9SdW5uaW5nIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9waXRjaF9BaXItRHVjayI6IkRvd24iLCAiYW50aWFpbV9tYW51YWwiOiJCYWNrd2FyZCIsICJhbnRpYWltX3BpdGNoMl9SdW5uaW5nIjoiRmFrZSBEb3duIiwgImFudGlhaW1fYm9keXlhd19pbnZlcnQiOmZhbHNlLCAiYW50aWFpbV9waXRjaHN0ZXBfQWlyLUR1Y2siOjEsICJhbnRpYWltX3JhbmRvbXBpdGNoc19SdW5uaW5nIjpbIkRpc2FibGVkIiwgIkZha2UgRG93biJdLCAiYW50aWFpbV95YXdiYXNlX1J1bm5pbmciOiJBdCBUYXJnZXQiLCAiYW50aWFpbV9vdmVycmlkZV9HbG9iYWwiOnRydWUsICJhbnRpYWltX292ZXJyaWRlX21hbnVhbHMiOlsiTGVmdCIsICJSaWdodCJdLCAiYW50aWFpbV95YXdtb2RlX1J1bm5pbmciOiJKaXR0ZXIiLCAiYW50aWFpbV9waXRjaDJfQWlyLUR1Y2siOiJEaXNhYmxlZCIsICJhbnRpYWltX3lhd3N0ZXBfUnVubmluZyI6MiwgImFudGlhaW1fcmFuZG9tcGl0Y2hzX0Fpci1EdWNrIjp7fSwgImFudGlhaW1feWF3bGVmdF9SdW5uaW5nIjoyMiwgImFudGlhaW1feWF3YmFzZV9BaXItRHVjayI6IkF0IFRhcmdldCIsICJhbnRpYWltX3lhd3JpZ2h0X1J1bm5pbmciOjIyLCAiYW50aWFpbV95YXdtb2RlX0Fpci1EdWNrIjoiSml0dGVyIiwgImFudGlhaW1fc3Bpbm9mZnNldF9SdW5uaW5nIjo1OCwgImFudGlhaW1feWF3c3RlcF9BaXItRHVjayI6MiwgImFudGlhaW1feWF3bW9kaWZpZXJfUnVubmluZyI6IkRpc2FibGVkIiwgImFudGlhaW1feWF3bW9kaWZpZXJfb2Zmc2V0X1J1bm5pbmciOjYyLCAiYW50aWFpbV9ib2R5eWF3X1J1bm5pbmciOmZhbHNlLCAiYW50aWFpbV95YXdyaWdodF9BaXItRHVjayI6MzEsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfMTMiOjAsICJhbnRpYWltX2JvZHl5YXdfbW9kZV9SdW5uaW5nIjoiU3RhdGljIiwgImFudGlhaW1fc3Bpbm9mZnNldF9BaXItRHVjayI6MCwgImFudGlhaW1fYmZfd2F5X0Nyb3VjaGluZ18xNCI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRfUnVubmluZyI6NjAsICJhbnRpYWltX3lhd21vZGlmaWVyX0Fpci1EdWNrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzE1IjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRfUnVubmluZyI6NjAsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9BaXItRHVjayI6MCwgImFudGlhaW1fYmZfd2F5X0Nyb3VjaGluZ18xNiI6MCwgImFudGlhaW1fYm9keXlhd19zdGVwX1J1bm5pbmciOjUsICJhbnRpYWltX2JvZHl5YXdfQWlyLUR1Y2siOmZhbHNlLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzE3IjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1pbl9SdW5uaW5nIjoxLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzE4IjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9SdW5uaW5nIjo2MCwgImFudGlhaW1fYmZfd2F5X0Nyb3VjaGluZ18xOSI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWluX1J1bm5pbmciOjEsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfMjAiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1heF9SdW5uaW5nIjo2MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0X0Fpci1EdWNrIjoxLCAiYW50aWFpbV9vdmVycmlkZV9TbG93LVdhbGsiOnRydWUsICJhbnRpYWltX2JvZHl5YXdfb3B0aW9uX1J1bm5pbmciOlsiSml0dGVyIl0sICJhbnRpYWltX2JhY2t3YXJkX29mZnNldF9TbG93LVdhbGsiOjAsICJhbnRpYWltX2xieV9vcHRpb25fUnVubmluZyI6IkRpc2FibGVkIiwgImFudGlhaW1fcGl0Y2htb2RlX1Nsb3ctV2FsayI6IkRlZmF1bHQiLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMSI6LTgsICJhbnRpYWltX3BpdGNoX1Nsb3ctV2FsayI6IkRvd24iLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMiI6OCwgImFudGlhaW1fcGl0Y2hzdGVwX1Nsb3ctV2FsayI6MSwgImFudGlhaW1feHdheV9SdW5uaW5nXzMiOi00LCAiYW50aWFpbV9waXRjaDFfU2xvdy1XYWxrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfNCI6NCwgImFudGlhaW1fcGl0Y2gyX1Nsb3ctV2FsayI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9SdW5uaW5nXzUiOi0zNiwgImFudGlhaW1fcmFuZG9tcGl0Y2hzX1Nsb3ctV2FsayI6e30sICJhbnRpYWltX3h3YXlfUnVubmluZ182Ijo2NSwgImFudGlhaW1feHdheV9SdW5uaW5nXzciOi01MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzgiOjM5LCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzUiOjAsICJhbnRpYWltX3h3YXlfT24tUGVla183IjowLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfOSI6LTUwLCAiYW50aWFpbV9ib2R5eWF3X1Nsb3ctV2FsayI6ZmFsc2UsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfNiI6MCwgImFudGlhaW1fcGl0Y2hfQ3JvdWNoaW5nIjoiRG93biIsICJhbnRpYWltX3h3YXlfUnVubmluZ18xMCI6NjksICJhbnRpYWltX2JvZHl5YXdfbW9kZV9TbG93LVdhbGsiOiJTdGF0aWMiLCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzciOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMSI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzExIjotNTgsICJhbnRpYWltX2JvZHl5YXdfc3RlcF9FeHBsb2l0LURlZmVuc2l2ZSI6MSwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRfU2xvdy1XYWxrIjoxLCAiYW50aWFpbV9waXRjaDFfQ3JvdWNoaW5nIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMTIiOjY0LCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1pbl9FeHBsb2l0LURlZmVuc2l2ZSI6MSwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0X1Nsb3ctV2FsayI6MSwgImFudGlhaW1fcGl0Y2gyX0Nyb3VjaGluZyI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9SdW5uaW5nXzEzIjotNTcsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWF4X0V4cGxvaXQtRGVmZW5zaXZlIjoxLCAiYW50aWFpbV9ib2R5eWF3X3N0ZXBfU2xvdy1XYWxrIjoxLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMTQiOjY1LCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fRXhwbG9pdC1EZWZlbnNpdmUiOjEsICJhbnRpYWltX3lhd2Jhc2VfQ3JvdWNoaW5nIjoiQXQgVGFyZ2V0IiwgImFudGlhaW1feHdheV9SdW5uaW5nXzE1IjotNTQsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1heF9FeHBsb2l0LURlZmVuc2l2ZSI6MSwgImFudGlhaW1feWF3bW9kaWZpZXJfb2Zmc2V0X1Nsb3ctV2FsayI6MTIsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMTEiOjAsICJhbnRpYWltX3lhd21vZGVfQ3JvdWNoaW5nIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMTYiOjQzLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9TbG93LVdhbGsiOjEsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTIiOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMTIiOjAsICJhbnRpYWltX3lhd3N0ZXBfQ3JvdWNoaW5nIjoyLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMTciOi0zOSwgImFudGlhaW1feWF3YmFzZV9TdGFuZGluZyI6IkF0IFRhcmdldCIsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1pbl9TbG93LVdhbGsiOjEsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTMiOjAsICJhbnRpYWltX3lhd2xlZnRfQ3JvdWNoaW5nIjo3LCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMTgiOjUwLCAiYW50aWFpbV95YXdtb2RlX1N0YW5kaW5nIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtYXhfU2xvdy1XYWxrIjoxLCAiYW50aWFpbV95YXdyaWdodF9Dcm91Y2hpbmciOjcsICJhbnRpYWltX3h3YXlfUnVubmluZ18xOSI6LTU4LCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzEiOjAsICJhbnRpYWltX3lhd3N0ZXBfU3RhbmRpbmciOjEsICJhbnRpYWltX2JvZHl5YXdfb3B0aW9uX1Nsb3ctV2FsayI6e30sICJhbnRpYWltX3NwaW5vZmZzZXRfQ3JvdWNoaW5nIjowLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzE1IjowLCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzE1IjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzIiOjAsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzE5IjowLCAiYW50aWFpbV95YXdsZWZ0X1N0YW5kaW5nIjowLCAiYW50aWFpbV9sYnlfb3B0aW9uX1Nsb3ctV2FsayI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X0dsb2JhbF8xNiI6MCwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV8zIjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18yMCI6MCwgImFudGlhaW1feWF3cmlnaHRfU3RhbmRpbmciOjAsICJhbnRpYWltX3h3YXlfdmFsdWVfU2xvdy1XYWxrIjoxMCwgImFudGlhaW1fYmZfdmFsdWVfQ3JvdWNoaW5nIjoyLCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzE3IjowLCAiYW50aWFpbV9ib2R5eWF3X0Nyb3VjaGluZyI6ZmFsc2UsICJhbnRpYWltX3NwaW5vZmZzZXRfU3RhbmRpbmciOjAsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzEiOi0xMiwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV81IjowLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzEiOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMTgiOjAsICJhbnRpYWltX2JvZHl5YXdfbW9kZV9Dcm91Y2hpbmciOiJTdGF0aWMiLCAiYW50aWFpbV95YXdtb2RpZmllcl9TdGFuZGluZyI6IkNlbnRlciIsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzIiOjEyLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzIiOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMTkiOjAsICJhbnRpYWltX3BsYXllcmNvbmRpdGlvbiI6IlNsb3ctV2FsayIsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9TdGFuZGluZyI6MzYsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzMiOi02LCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRfQ3JvdWNoaW5nIjoxLCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzIwIjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzgiOjAsICJhbnRpYWltX2JvZHl5YXdfU3RhbmRpbmciOmZhbHNlLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa180Ijo2LCAiYW50aWFpbV9ib2R5eWF3X3N0ZXBfQ3JvdWNoaW5nIjoxLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzkiOjAsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfNSI6MCwgImFudGlhaW1fYm9keXlhd19tb2RlX1N0YW5kaW5nIjoiU3RhdGljIiwgImFudGlhaW1feHdheV9TbG93LVdhbGtfNSI6MCwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV8xMCI6MCwgImFudGlhaW1fYmZfd2F5X0Nyb3VjaGluZ182IjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9Dcm91Y2hpbmciOjEsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTEiOjAsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfNyI6MCwgImFudGlhaW1feWF3bW9kaWZpZXJfR2xvYmFsIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fQ3JvdWNoaW5nIjoxLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRfU3RhbmRpbmciOjYwLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzEyIjowLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzgiOjAsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTUiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1heF9Dcm91Y2hpbmciOjEsICJhbnRpYWltX2JvZHl5YXdfc3RlcF9TdGFuZGluZyI6MzksICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTMiOjAsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfOSI6MCwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV8xNiI6MCwgImFudGlhaW1fYm9keXlhd19vcHRpb25fQ3JvdWNoaW5nIjp7fSwgImFudGlhaW1fYm9keXlhd19HbG9iYWwiOmZhbHNlLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE0IjowLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzEwIjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE3IjowLCAiYW50aWFpbV9sYnlfb3B0aW9uX0Nyb3VjaGluZyI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfOSI6MCwgImFudGlhaW1fYm9keXlhd19tb2RlX0dsb2JhbCI6IlN0YXRpYyIsICJhbnRpYWltX3BpdGNoMl9BaXIiOiJEaXNhYmxlZCIsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWF4X1N0YW5kaW5nIjo2MCwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV8xOCI6MCwgImFudGlhaW1feHdheV92YWx1ZV9Dcm91Y2hpbmciOjIsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzEwIjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdF9HbG9iYWwiOjEsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfMTIiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1pbl9TdGFuZGluZyI6MSwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMSI6MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTEiOjAsICJhbnRpYWltX3lhd2Jhc2VfQWlyIjoiQXQgVGFyZ2V0IiwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0X0dsb2JhbCI6MSwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV8yMCI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMiI6MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTIiOjAsICJhbnRpYWltX3lhd21vZGVfQWlyIjoiSml0dGVyIiwgImFudGlhaW1fYmZfdmFsdWVfRXhwbG9pdC1EZWZlbnNpdmUiOjIsICJhbnRpYWltX2JvZHl5YXdfc3RlcF9HbG9iYWwiOjEsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzMiOjAsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzEzIjowLCAiYW50aWFpbV9iYWNrd2FyZF9vZmZzZXRfR2xvYmFsIjowLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMSI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfNCI6MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTQiOjAsICJhbnRpYWltX2xieV9vcHRpb25fU3RhbmRpbmciOiJTd2F5IiwgImFudGlhaW1feWF3bGVmdF9BaXIiOjgsICJhbnRpYWltX3BpdGNobW9kZV9HbG9iYWwiOiJEZWZhdWx0IiwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzIiOjAsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzUiOjAsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzE1IjowLCAiYW50aWFpbV94d2F5X3ZhbHVlX1N0YW5kaW5nIjoyLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMyI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfNiI6MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTYiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1pbl9HbG9iYWwiOjEsICJhbnRpYWltX3NwaW5vZmZzZXRfQWlyIjowLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzEiOjAsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV80IjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ183IjowLCAiYW50aWFpbV94d2F5X0Zha2UtRHVja18xNyI6MCwgImFudGlhaW1feWF3bW9kaWZpZXJfQWlyIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzIiOjAsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzgiOjAsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzE4IjowLCAiYW50aWFpbV95YXdtb2RpZmllcl9vZmZzZXRfQWlyIjowLCAiYW50aWFpbV9ib2R5eWF3X29wdGlvbl9HbG9iYWwiOnt9LCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfNiI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfOSI6MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTkiOjAsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV83IjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18xMCI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ180IjowLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfOCI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMTEiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfNSI6MCwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzkiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzE0IjowLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzEiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfNiI6MCwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTYiOjAsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV8xMCI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMTUiOjAsICJhbnRpYWltX3h3YXlfUnVubmluZ18yMCI6MjQsICJhbnRpYWltX3h3YXlfR2xvYmFsXzIiOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMiI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ183IjowLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTEiOjAsICJhbnRpYWltX3h3YXlfT24tUGVla184IjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18xNCI6MCwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8xMCI6MCwgImFudGlhaW1feHdheV9HbG9iYWxfMyI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fU2xvdy1XYWxrIjoxLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTIiOjAsICJhbnRpYWltX3h3YXlfT24tUGVla185IjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18xNSI6MCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMSI6MCwgImFudGlhaW1fYm9keXlhd19vcHRpb25fRXhwbG9pdC1EZWZlbnNpdmUiOnt9LCAiYW50aWFpbV94d2F5X0dsb2JhbF80IjowLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTMiOjAsICJhbnRpYWltX3h3YXlfT24tUGVla18xMCI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMTYiOjAsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzIiOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTciOjAsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfNyI6MCwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE0IjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTEiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMTAiOjAsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzMiOjAsICJhbnRpYWltX3BpdGNoMV9TdGFuZGluZyI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV82IjowLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTUiOjAsICJhbnRpYWltX3h3YXlfR2xvYmFsXzYiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfNyI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ18xMSI6MCwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV80IjowLCAiYW50aWFpbV94d2F5X3ZhbHVlX0V4cGxvaXQtRGVmZW5zaXZlIjoyLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTYiOjAsICJhbnRpYWltX3h3YXlfT24tUGVla18xMyI6MCwgImFudGlhaW1feHdheV9HbG9iYWxfNyI6MCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfNSI6MCwgImFudGlhaW1fbGJ5X29wdGlvbl9FeHBsb2l0LURlZmVuc2l2ZSI6Ik9wcG9zaXRlIiwgImFudGlhaW1fcGl0Y2hzdGVwX1N0YW5kaW5nIjoxLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTciOjAsICJhbnRpYWltX3h3YXlfT24tUGVla18xNCI6MCwgImFudGlhaW1fYm9keXlhd19vcHRpb25fU3RhbmRpbmciOlsiQXZvaWQgT3ZlcmxhcCJdLCAiYW50aWFpbV94d2F5X0dsb2JhbF84IjowLCAiYW50aWFpbV9sYnlfb3B0aW9uX0dsb2JhbCI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8xMyI6MCwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE4IjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTUiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTIiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTEiOjAsICJhbnRpYWltX3h3YXlfR2xvYmFsXzkiOjAsICJhbnRpYWltX3BpdGNoX1N0YW5kaW5nIjoiRG93biIsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV8xOSI6MCwgImFudGlhaW1feHdheV9Pbi1QZWVrXzE2IjowLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzkiOjAsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWluX0Zha2UtRHVjayI6MSwgImFudGlhaW1feHdheV9HbG9iYWxfNSI6MCwgImFudGlhaW1feHdheV9HbG9iYWxfMTAiOjAsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV8yMCI6MCwgImFudGlhaW1feHdheV9Pbi1QZWVrXzE3IjowLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV8xOSI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtYXhfRmFrZS1EdWNrIjoxLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV8xNyI6MCwgImFudGlhaW1fcGl0Y2htb2RlX1N0YW5kaW5nIjoiRGVmYXVsdCIsICJhbnRpYWltX3h3YXlfR2xvYmFsXzExIjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTgiOjAsICJhbnRpYWltX3lhd2xlZnRfQWlyLUR1Y2siOjMxLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fRmFrZS1EdWNrIjoxLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fTWFudWFsLUFBIjozMCwgImFudGlhaW1fYm9keXlhd19zdGVwX01hbnVhbC1BQSI6MSwgImFudGlhaW1fbGJ5X29wdGlvbl9BaXIiOiJEaXNhYmxlZCIsICJhbnRpYWltX3h3YXlfR2xvYmFsXzEyIjowLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzIwIjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtYXhfRmFrZS1EdWNrIjoxLCAiYW50aWFpbV9iYWNrd2FyZF9vZmZzZXRfU3RhbmRpbmciOjAsICJhbnRpYWltX2JvZHl5YXdfc3RlcF9BaXIiOjQsICJhbnRpYWltX3h3YXlfR2xvYmFsXzIwIjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMjAiOjAsICJhbnRpYWltX3h3YXlfR2xvYmFsXzEzIjowLCAiYW50aWFpbV9ib2R5eWF3X29wdGlvbl9GYWtlLUR1Y2siOnt9LCAiYW50aWFpbV9waXRjaG1vZGVfTWFudWFsLUFBIjoiRGVmYXVsdCIsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMjAiOjAsICJhbnRpYWltX2JmX3ZhbHVlX09uLVBlZWsiOjIsICJhbnRpYWltX292ZXJyaWRlX1N0YW5kaW5nIjp0cnVlLCAiYW50aWFpbV9iZl93YXlfT24tUGVla18xNiI6MCwgImFudGlhaW1feHdheV9HbG9iYWxfMTQiOjAsICJhbnRpYWltX2xieV9vcHRpb25fRmFrZS1EdWNrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9waXRjaHN0ZXBfQ3JvdWNoaW5nIjoxLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtYXhfTWFudWFsLUFBIjo2MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMSI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfNCI6MCwgImFudGlhaW1fYmZfd2F5X0Fpcl8xIjowLCAiYW50aWFpbV94d2F5X3ZhbHVlX0Zha2UtRHVjayI6MiwgImFudGlhaW1feHdheV9TdGFuZGluZ18xMiI6MCwgImFudGlhaW1fYm9keXlhd19vcHRpb25fTWFudWFsLUFBIjp7fSwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMiI6MCwgImFudGlhaW1fYm9keXlhd19tb2RlX0FpciI6IlN0YXRpYyIsICJhbnRpYWltX3h3YXlfT24tUGVla18xOSI6MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMSI6MCwgImFudGlhaW1feHdheV9Pbi1QZWVrXzEyIjowLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzEzIjowLCAiYW50aWFpbV9iZl93YXlfT24tUGVla18zIjowLCAiYW50aWFpbV9waXRjaG1vZGVfRXhwbG9pdC1EZWZlbnNpdmUiOiJSYW5kb20iLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdF9BaXIiOjYwLCAiYW50aWFpbV94d2F5X0Zha2UtRHVja18yIjowLCAiYW50aWFpbV94d2F5X0Fpcl8xIjotNDIsICJhbnRpYWltX3h3YXlfdmFsdWVfTWFudWFsLUFBIjoyLCAiYW50aWFpbV94d2F5X0dsb2JhbF8xNyI6MCwgImFudGlhaW1fYmZfd2F5X0dsb2JhbF8yIjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRfQWlyIjo2MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMyI6MCwgImFudGlhaW1fYmZfd2F5X0Fpcl8zIjowLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV8xIjowLCAiYW50aWFpbV9iZl93YXlfT24tUGVla181IjowLCAiYW50aWFpbV94d2F5X0dsb2JhbF8xOCI6MCwgImFudGlhaW1fb3ZlcnJpZGVfRXhwbG9pdC1EZWZlbnNpdmUiOnRydWUsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzQiOjAsICJhbnRpYWltX292ZXJyaWRlX01hbnVhbC1BQSI6dHJ1ZSwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMiI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfNiI6MCwgImFudGlhaW1feHdheV9BaXJfMiI6NDIsICJhbnRpYWltX3h3YXlfR2xvYmFsXzE5IjowLCAiYW50aWFpbV94d2F5X0Zha2UtRHVja181IjowLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzE5IjowLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV8zIjowLCAiYW50aWFpbV9iZl93YXlfT24tUGVla183IjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtYXhfR2xvYmFsIjoxLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9BaXIiOjIzLCAiYW50aWFpbV94d2F5X0Zha2UtRHVja182IjowLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzUiOjAsICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzQiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzgiOjAsICJhbnRpYWltX3h3YXlfQWlyXzMiOi0yNCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWluX0FpciI6MSwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfNyI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ18xOCI6MCwgImFudGlhaW1feHdheV9BaXJfNCI6MjQsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzkiOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfNiI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWF4X0FpciI6MjMsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzgiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMTkiOjAsICJhbnRpYWltX3h3YXlfQWlyXzUiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzEwIjowLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzE4IjowLCAiYW50aWFpbV9ib2R5eWF3X29wdGlvbl9BaXIiOlsiQXZvaWQgT3ZlcmxhcCJdLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfNiI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ18yMCI6MCwgImFudGlhaW1feHdheV9BaXJfNiI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMTEiOjAsICJhbnRpYWltX3h3YXlfQWlyXzEzIjowLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV83IjowLCAiYW50aWFpbV9iZl92YWx1ZV9TdGFuZGluZyI6NSwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzciOjAsICJhbnRpYWltX3h3YXlfQWlyXzciOjAsICJhbnRpYWltX2JmX3ZhbHVlX1Nsb3ctV2FsayI6MiwgImFudGlhaW1feHdheV9BaXJfMTQiOjAsICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzgiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTgiOjAsICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ18xIjo0OCwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzkiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfMiI6MCwgImFudGlhaW1feHdheV9BaXJfMTUiOjAsICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzkiOjAsICJhbnRpYWltX3BpdGNobW9kZV9Dcm91Y2hpbmciOiJEZWZhdWx0IiwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzIiOjMyLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzEzIjowLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTAiOjAsICJhbnRpYWltX3h3YXlfQWlyXzE2IjowLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV8xMCI6MCwgImFudGlhaW1fYmFja3dhcmRfb2Zmc2V0X0V4cGxvaXQtRGVmZW5zaXZlIjowLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMyI6NDQsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWF4X01hbnVhbC1BQSI6NjAsICJhbnRpYWltX3h3YXlfQWlyXzEwIjowLCAiYW50aWFpbV94d2F5X0Fpcl8xNyI6MCwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTEiOjAsICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ18xMSI6MCwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzQiOjYwLCAiYW50aWFpbV9waXRjaF9FeHBsb2l0LURlZmVuc2l2ZSI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa184IjowLCAiYW50aWFpbV94d2F5X0Fpcl8xOCI6MCwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTIiOjAsICJhbnRpYWltX3N3aXRjaCI6dHJ1ZSwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzUiOjQ0LCAiYW50aWFpbV9waXRjaHN0ZXBfRXhwbG9pdC1EZWZlbnNpdmUiOjIsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfNiI6MCwgImFudGlhaW1feHdheV9BaXJfMTkiOjAsICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzEzIjowLCAiYW50aWFpbV94d2F5X0Fpcl8xMiI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTciOjAsICJhbnRpYWltX3BpdGNoMV9FeHBsb2l0LURlZmVuc2l2ZSI6IkZha2UgVXAiLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTMiOjAsICJhbnRpYWltX3BpdGNoMl9Pbi1QZWVrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV8xNCI6MCwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8xOSI6MCwgImFudGlhaW1feWF3bW9kZV9TbG93LVdhbGsiOiJKaXR0ZXIiLCAiYW50aWFpbV9waXRjaDJfRXhwbG9pdC1EZWZlbnNpdmUiOiJEb3duIiwgImFudGlhaW1fYmZfdmFsdWVfQWlyIjoyLCAiYW50aWFpbV9yYW5kb21waXRjaHNfT24tUGVlayI6e30sICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzE1IjowLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTQiOjAsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzE2IjowLCAiYW50aWFpbV9yYW5kb21waXRjaHNfRXhwbG9pdC1EZWZlbnNpdmUiOlsiRG93biIsICJGYWtlIFVwIl0sICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ18xNSI6MCwgImFudGlhaW1feWF3YmFzZV9Pbi1QZWVrIjoiTG9jYWwgVmlldyIsICJhbnRpYWltX3h3YXlfQWlyXzgiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTMiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfNCI6MCwgImFudGlhaW1feWF3YmFzZV9FeHBsb2l0LURlZmVuc2l2ZSI6IkF0IFRhcmdldCIsICJhbnRpYWltX3BpdGNoX01hbnVhbC1BQSI6IkRvd24iLCAiYW50aWFpbV95YXdtb2RlX09uLVBlZWsiOiJEaXNhYmxlZCIsICJhbnRpYWltX3h3YXlfQWlyXzkiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTciOjAsICJhbnRpYWltX2JmX3ZhbHVlX0dsb2JhbCI6MiwgImFudGlhaW1feWF3bW9kZV9FeHBsb2l0LURlZmVuc2l2ZSI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9BaXItRHVja18yMCI6MCwgImFudGlhaW1feWF3c3RlcF9Pbi1QZWVrIjoxLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV8xOCI6MCwgImFudGlhaW1fcGl0Y2hzdGVwX01hbnVhbC1BQSI6MSwgImFudGlhaW1fcGl0Y2gyX01hbnVhbC1BQSI6IkRpc2FibGVkIiwgImFudGlhaW1feWF3c3RlcF9FeHBsb2l0LURlZmVuc2l2ZSI6MiwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8xNiI6MCwgImFudGlhaW1feWF3bGVmdF9Pbi1QZWVrIjowLCAiYW50aWFpbV94d2F5X0Fpcl8xMSI6MCwgImFudGlhaW1fYmZfd2F5X0Fpcl81IjowLCAiYW50aWFpbV9iZl93YXlfQWlyXzE4IjowLCAiYW50aWFpbV95YXdsZWZ0X0V4cGxvaXQtRGVmZW5zaXZlIjo5MCwgImFudGlhaW1fYmZfd2F5X0Fpcl8xNCI6MCwgImFudGlhaW1feWF3cmlnaHRfT24tUGVlayI6MCwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMjAiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTUiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9NYW51YWwtQUEiOjAsICJhbnRpYWltX3lhd3JpZ2h0X0V4cGxvaXQtRGVmZW5zaXZlIjo5MCwgImFudGlhaW1fc3Bpbm9mZnNldF9HbG9iYWwiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfNiI6MCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfNCI6MCwgImFudGlhaW1feHdheV9BaXItRHVja18xNiI6MCwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8xNCI6MCwgImFudGlhaW1fc3Bpbm9mZnNldF9FeHBsb2l0LURlZmVuc2l2ZSI6MzIsICJhbnRpYWltX3lhd21vZGlmaWVyX01hbnVhbC1BQSI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X0Fpcl83IjowLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzEiOjAsICJhbnRpYWltX3JhbmRvbXBpdGNoc19GYWtlLUR1Y2siOnt9LCAiYW50aWFpbV94d2F5X0dsb2JhbF8xNiI6MCwgImFudGlhaW1feWF3bW9kaWZpZXJfRXhwbG9pdC1EZWZlbnNpdmUiOiJDZW50ZXIiLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV81IjowLCAiYW50aWFpbV9iZl93YXlfQWlyXzgiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMiI6MCwgImFudGlhaW1feWF3YmFzZV9GYWtlLUR1Y2siOiJMb2NhbCBWaWV3IiwgImFudGlhaW1fYmZfd2F5X0Fpcl8xOSI6MCwgImFudGlhaW1feWF3bW9kaWZpZXJfb2Zmc2V0X0V4cGxvaXQtRGVmZW5zaXZlIjotMTIwLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTYiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfOSI6MCwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8zIjowLCAiYW50aWFpbV95YXdtb2RlX0Zha2UtRHVjayI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTkiOjAsICJhbnRpYWltX2JvZHl5YXdfRXhwbG9pdC1EZWZlbnNpdmUiOmZhbHNlLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTciOjAsICJhbnRpYWltX2JmX3dheV9BaXJfMTAiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfNCI6MCwgImFudGlhaW1feWF3c3RlcF9GYWtlLUR1Y2siOjEsICJhbnRpYWltX3JhbmRvbXBpdGNoc19NYW51YWwtQUEiOnt9LCAiYW50aWFpbV9waXRjaDFfTWFudWFsLUFBIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTgiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfMTEiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfNSI6MCwgImFudGlhaW1feWF3bGVmdF9GYWtlLUR1Y2siOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTAiOjAsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0X0V4cGxvaXQtRGVmZW5zaXZlIjo2MCwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzE5IjowLCAiYW50aWFpbV9iZl93YXlfQWlyXzEyIjowLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzYiOjAsICJhbnRpYWltX3lhd3JpZ2h0X0Zha2UtRHVjayI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18yIjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRfRXhwbG9pdC1EZWZlbnNpdmUiOjYwLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMjAiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfMTMiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfNyI6MCwgImFudGlhaW1fc3Bpbm9mZnNldF9GYWtlLUR1Y2siOjAsICJhbnRpYWltX3lhd2xlZnRfU2xvdy1XYWxrIjozNiwgImFudGlhaW1feWF3YmFzZV9NYW51YWwtQUEiOiJMb2NhbCBWaWV3IiwgImFudGlhaW1fb3ZlcnJpZGVfUnVubmluZyI6dHJ1ZSwgImFudGlhaW1feHdheV9TbG93LVdhbGtfNyI6LTEyLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzgiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX0Zha2UtRHVjayI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X0Fpcl8xNyI6MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMjAiOjAsICJhbnRpYWltX3lhd21vZGVfTWFudWFsLUFBIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9iYWNrd2FyZF9vZmZzZXRfUnVubmluZyI6MCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfOCI6MCwgImFudGlhaW1feWF3bW9kaWZpZXJfb2Zmc2V0X0Zha2UtRHVjayI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfOSI6LTYsICJhbnRpYWltX2JmX3dheV9BaXJfMTYiOjAsICJhbnRpYWltX3lhd3N0ZXBfTWFudWFsLUFBIjoxLCAiYW50aWFpbV9waXRjaG1vZGVfUnVubmluZyI6IkRlZmF1bHQiLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ185IjowLCAiYW50aWFpbV9ib2R5eWF3X0Zha2UtRHVjayI6ZmFsc2UsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfNCI6MCwgImFudGlhaW1fYmZfd2F5X0Fpcl8xNSI6MCwgImFudGlhaW1feWF3bGVmdF9NYW51YWwtQUEiOjAsICJhbnRpYWltX3BpdGNoX1J1bm5pbmciOiJEb3duIiwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMTAiOjAsICJhbnRpYWltX2JvZHl5YXdfbW9kZV9GYWtlLUR1Y2siOiJTdGF0aWMiLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa18xMCI6MCwgImFudGlhaW1feHdheV9HbG9iYWxfMTUiOjAsICJhbnRpYWltX3lhd3JpZ2h0X01hbnVhbC1BQSI6MCwgImFudGlhaW1fcGl0Y2hzdGVwX1J1bm5pbmciOjIsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzExIjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdF9GYWtlLUR1Y2siOjEsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzYiOjEyLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa18xMSI6MCwgImFudGlhaW1feWF3bGVmdF9HbG9iYWwiOjAsICJhbnRpYWltX3NwaW5vZmZzZXRfTWFudWFsLUFBIjowLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ18xMiI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0X0Zha2UtRHVjayI6MSwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTgiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfNCI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTIiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfMjAiOjAsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzEzIjowLCAiYW50aWFpbV9ib2R5eWF3X3N0ZXBfRmFrZS1EdWNrIjoxLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtYXhfU3RhbmRpbmciOjYwLCAiYW50aWFpbV95YXdzdGVwX1Nsb3ctV2FsayI6MSwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzgiOjAsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzEzIjowLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ18xNCI6MCwgImFudGlhaW1fYmZfdmFsdWVfTWFudWFsLUFBIjoyLCAiYW50aWFpbV94d2F5X0Fpcl8yMCI6MCwgImFudGlhaW1fYmZfd2F5X0dsb2JhbF83IjowLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzE0IjowLCAiYW50aWFpbV9ib2R5eWF3X01hbnVhbC1BQSI6ZmFsc2UsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzE1IjowLCAiYW50aWFpbV95YXdtb2RpZmllcl9vZmZzZXRfR2xvYmFsIjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9Pbi1QZWVrIjoxLCAiYW50aWFpbV94d2F5X3ZhbHVlX0FpciI6NCwgImFudGlhaW1feHdheV9TdGFuZGluZ18xNCI6MCwgImFudGlhaW1fYm9keXlhd19tb2RlX01hbnVhbC1BQSI6IlJhbmRvbSIsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzE2IjowLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa18xNSI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRfQ3JvdWNoaW5nIjoxLCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfNiI6MCwgImFudGlhaW1fcmFuZG9tcGl0Y2hzX1N0YW5kaW5nIjp7fSwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRfTWFudWFsLUFBIjo2MCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMTciOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfOCI6MCwgImFudGlhaW1fYm9keXlhd19zdGVwX0Fpci1EdWNrIjoxLCAiYW50aWFpbV9yYW5kb21waXRjaHNfQWlyIjp7fSwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzciOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdF9NYW51YWwtQUEiOjYwLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ18xOCI6MCwgImFudGlhaW1fc3Bpbm9mZnNldF9TbG93LVdhbGsiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja185IjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1pbl9BaXItRHVjayI6MSwgImFudGlhaW1feWF3bW9kaWZpZXJfU2xvdy1XYWxrIjoiU3BpbiIsICJhbnRpYWltX2JmX3dheV9BaXItRHVja184IjowLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ18xOSI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTQiOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfOSI6MCwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzEwIjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9BaXItRHVjayI6MSwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fTWFudWFsLUFBIjozMCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMjAiOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMTMiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMTYiOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfOCI6MCwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzExIjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fQWlyLUR1Y2siOjEsICJhbnRpYWltX292ZXJyaWRlX0Nyb3VjaGluZyI6dHJ1ZSwgImFudGlhaW1fYmZfd2F5X0dsb2JhbF8zIjowLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzE1IjowLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV82IjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18xMiI6MCwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzEyIjowLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa18yMCI6MCwgImFudGlhaW1fYmZfd2F5X0dsb2JhbF80IjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1pbl9BaXIiOjEsICJhbnRpYWltX292ZXJyaWRlX09uLVBlZWsiOmZhbHNlLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzEiOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTEiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18xMyI6MCwgImFudGlhaW1fYm9keXlhd19vcHRpb25fQWlyLUR1Y2siOnt9LCAiYW50aWFpbV9sYnlfb3B0aW9uX01hbnVhbC1BQSI6IkRpc2FibGVkIiwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRfU3RhbmRpbmciOjYwLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1pbl9TdGFuZGluZyI6MSwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfNyI6MCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfNiI6MCwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzE0IjowLCAiYW50aWFpbV9sYnlfb3B0aW9uX0Fpci1EdWNrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1pbl9HbG9iYWwiOjEsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzIwIjowLCAiYW50aWFpbV9iZl93YXlfT24tUGVla18xOSI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja181IjowLCAiYW50aWFpbV9iZl93YXlfT24tUGVla18xOCI6MCwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzE1IjowLCAiYW50aWFpbV94d2F5X3ZhbHVlX0Fpci1EdWNrIjoyLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzE3IjowLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzQiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzE3IjowLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzgiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfMyI6MCwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzE2IjowLCAiYW50aWFpbV94d2F5X0Fpci1EdWNrXzEiOjAsICJhbnRpYWltX2JmX3ZhbHVlX1J1bm5pbmciOjIsICJhbnRpYWltX2JmX3ZhbHVlX0Zha2UtRHVjayI6MiwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja185IjowLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfNSI6MCwgImFudGlhaW1feHdheV92YWx1ZV9SdW5uaW5nIjo0LCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfMTciOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMiI6MCwgImFudGlhaW1feWF3cmlnaHRfQWlyIjoxMCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18xMCI6MCwgImFudGlhaW1feWF3YmFzZV9TbG93LVdhbGsiOiJBdCBUYXJnZXQiLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9HbG9iYWwiOjEsICJhbnRpYWltX3JhbmRvbXBpdGNoc19Dcm91Y2hpbmciOnt9LCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfMTgiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMyI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18xMSI6MCwgImFudGlhaW1feWF3c3RlcF9BaXIiOjEsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1heF9BaXItRHVjayI6MSwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa18xNCI6MCwgImFudGlhaW1feWF3bW9kaWZpZXJfb2Zmc2V0X0Nyb3VjaGluZyI6MCwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzE5IjowLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzEyIjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE5IjowLCAiYW50aWFpbV9ib2R5eWF3X0FpciI6ZmFsc2UsICJhbnRpYWltX2JhY2t3YXJkX29mZnNldF9Dcm91Y2hpbmciOjAsICJhbnRpYWltX2JhY2t3YXJkX29mZnNldF9BaXIiOjAsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfMTEiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18yMCI6MCwgImFudGlhaW1feHdheV9BaXItRHVja181IjowLCAiYW50aWFpbV9waXRjaDFfQWlyIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9waXRjaHN0ZXBfQWlyIjoxLCAiYW50aWFpbV9waXRjaF9BaXIiOiJEb3duIiwgImFudGlhaW1fcGl0Y2htb2RlX0FpciI6IkRlZmF1bHQiLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzE0IjowLCAiYW50aWFpbV9vdmVycmlkZV9GYWtlLUR1Y2siOmZhbHNlLCAiYW50aWFpbV94d2F5X0Fpci1EdWNrXzYiOjAsICJhbnRpYWltX3lhd3JpZ2h0X0dsb2JhbCI6MCwgImFudGlhaW1fYmZfd2F5X0Nyb3VjaGluZ180IjowLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzMiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfMTUiOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMTYiOjAsICJhbnRpYWltX2JhY2t3YXJkX29mZnNldF9GYWtlLUR1Y2siOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfNyI6MCwgImFudGlhaW1feWF3bW9kaWZpZXJfQ3JvdWNoaW5nIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18xOCI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18xNiI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMTciOjAsICJhbnRpYWltX3BpdGNobW9kZV9GYWtlLUR1Y2siOiJEZWZhdWx0IiwgImFudGlhaW1fcGl0Y2gyX1N0YW5kaW5nIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X0Fpci1EdWNrXzgiOjAsICJhbnRpYWltX292ZXJyaWRlX0FpciI6dHJ1ZSwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18xNyI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRfQWlyLUR1Y2siOjEsICJhbnRpYWltX3BpdGNoX0Zha2UtRHVjayI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9TdGFuZGluZ185IjowLCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzEwIjowLCAiYW50aWFpbV94d2F5X0Fpci1EdWNrXzkiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfMTgiOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfOSI6MCwgImFudGlhaW1fcGl0Y2hzdGVwX0Zha2UtRHVjayI6MSwgImFudGlhaW1feWF3cmlnaHRfU2xvdy1XYWxrIjozNiwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa18zIjowLCAiYW50aWFpbV9waXRjaDFfQWlyLUR1Y2siOiJEaXNhYmxlZCIsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTAiOjAsICJhbnRpYWltX2JvZHl5YXdfbW9kZV9FeHBsb2l0LURlZmVuc2l2ZSI6IlN0YXRpYyIsICJhbnRpYWltX3BpdGNoMV9GYWtlLUR1Y2siOiJEaXNhYmxlZCIsICJhbnRpYWltX2JvZHl5YXdfbW9kZV9BaXItRHVjayI6IlN0YXRpYyIsICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ18xMiI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfOCI6NiwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18yMCI6MCwgImFudGlhaW1feHdheV9BaXItRHVja18xMSI6MCwgImFudGlhaW1fcGl0Y2gyX0Zha2UtRHVjayI6IkRpc2FibGVkIiwgImFudGlhaW1fYm9keXlhd19vcHRpb25fT24tUGVlayI6e30sICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWluX0Nyb3VjaGluZyI6MSwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMTMiOjAsICJhbnRpYWltX3h3YXlfdmFsdWVfR2xvYmFsIjozLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzE5IjowLCAiYW50aWFpbV94d2F5X0Fpci1EdWNrXzEyIjowLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzMiOjAsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzEzIjowLCAiYW50aWFpbV94d2F5X0dsb2JhbF8xIjowLCAiYW50aWFpbV9iYWNrd2FyZF9vZmZzZXRfT24tUGVlayI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMTIiOjB9=",
+    default_cfg = "eyJhbnRpYWltX3BpdGNobW9kZV9BaXIiOiJEZWZhdWx0IiwgImFudGlhaW1fcGl0Y2hzdGVwX1J1bm5pbmciOjIsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzkiOjAsICJhbnRpYWltX3BpdGNoX0FpciI6IkRvd24iLCAiYW50aWFpbV9waXRjaDFfUnVubmluZyI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTAiOjAsICJhbnRpYWltX3BpdGNoc3RlcF9BaXIiOjEsICJhbnRpYWltX3BpdGNoMl9SdW5uaW5nIjoiRmFrZSBEb3duIiwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTEiOjAsICJhbnRpYWltX3BpdGNoMV9BaXIiOiJEaXNhYmxlZCIsICJhbnRpYWltX3JhbmRvbXBpdGNoc19SdW5uaW5nIjpbIkRpc2FibGVkIiwgIkZha2UgRG93biJdLCAiYW50aWFpbV94d2F5X0Zha2UtRHVja18xMiI6MCwgImFudGlhaW1fcGl0Y2gyX0FpciI6IkRpc2FibGVkIiwgImFudGlhaW1feWF3YmFzZV9SdW5uaW5nIjoiQXQgVGFyZ2V0IiwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTMiOjAsICJhbnRpYWltX3JhbmRvbXBpdGNoc19BaXIiOnt9LCAiYW50aWFpbV95YXdtb2RlX1J1bm5pbmciOiJEaXNhYmxlZCIsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzE0IjowLCAiYW50aWFpbV95YXdiYXNlX0FpciI6IkF0IFRhcmdldCIsICJhbnRpYWltX3lhd3N0ZXBfUnVubmluZyI6MiwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTUiOjAsICJhbnRpYWltX3lhd21vZGVfQWlyIjoiSml0dGVyIiwgImFudGlhaW1feWF3bGVmdF9SdW5uaW5nIjozMCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTYiOjAsICJhbnRpYWltX3lhd3N0ZXBfQWlyIjoxLCAiYW50aWFpbV95YXdyaWdodF9SdW5uaW5nIjozMCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTciOjAsICJhbnRpYWltX3lhd2xlZnRfQWlyIjozMiwgImFudGlhaW1fc3Bpbm9mZnNldF9SdW5uaW5nIjo1OCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMTgiOjAsICJhbnRpYWltX3lhd3JpZ2h0X0FpciI6MzQsICJhbnRpYWltX3lhd21vZGlmaWVyX1J1bm5pbmciOiJDZW50ZXIiLCAiYW50aWFpbV94d2F5X0Zha2UtRHVja18xOSI6MCwgImFudGlhaW1fc3Bpbm9mZnNldF9BaXIiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9SdW5uaW5nIjo2MiwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfMjAiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX0FpciI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9HbG9iYWxfMTciOjAsICJhbnRpYWltX2JmX3ZhbHVlX0Zha2UtRHVjayI6MiwgImFudGlhaW1feWF3bW9kaWZpZXJfb2Zmc2V0X0FpciI6MCwgImFudGlhaW1fYm9keXlhd19tb2RlX1J1bm5pbmciOiJTdGF0aWMiLCAiYW50aWFpbV94d2F5X0dsb2JhbF8xOCI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18xIjowLCAiYW50aWFpbV9ib2R5eWF3X0FpciI6ZmFsc2UsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0X1J1bm5pbmciOjYwLCAiYW50aWFpbV94d2F5X0dsb2JhbF8xOSI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18yIjowLCAiYW50aWFpbV9ib2R5eWF3X21vZGVfQWlyIjoiU3RhdGljIiwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0X1J1bm5pbmciOjYwLCAiYW50aWFpbV94d2F5X0dsb2JhbF8yMCI6MCwgImFudGlhaW1fYmFja3dhcmRfb2Zmc2V0X0V4cGxvaXQtRGVmZW5zaXZlIjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdF9BaXIiOjYwLCAiYW50aWFpbV9ib2R5eWF3X3N0ZXBfUnVubmluZyI6NSwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMSI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja180IjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRfQWlyIjo2MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fUnVubmluZyI6MSwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMiI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja181IjowLCAiYW50aWFpbV9ib2R5eWF3X3N0ZXBfQWlyIjo0LCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzIiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzMiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfNiI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fQWlyIjoxLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzMiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzQiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfNyI6MCwgImFudGlhaW1fcGl0Y2htb2RlX0Nyb3VjaGluZyI6IkRlZmF1bHQiLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzQiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMiI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja184IjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fQWlyIjoxLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzUiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMyI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja185IjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtYXhfQWlyIjoyMywgImFudGlhaW1fYmZfd2F5X0dsb2JhbF82IjowLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzQiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfMTAiOjAsICJhbnRpYWltX3BpdGNoMV9Dcm91Y2hpbmciOiJEaXNhYmxlZCIsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfNyI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ181IjowLCAiYW50aWFpbV94d2F5X0Fpci1EdWNrXzciOjAsICJhbnRpYWltX2xieV9vcHRpb25fQWlyIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzgiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfNiI6MCwgImFudGlhaW1feHdheV9BaXItRHVja184IjowLCAiYW50aWFpbV94d2F5X3ZhbHVlX0FpciI6NCwgImFudGlhaW1fYmZfd2F5X0dsb2JhbF85IjowLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzciOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfOSI6MCwgImFudGlhaW1feHdheV9BaXJfMSI6LTQyLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzEwIjowLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzgiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTAiOjAsICJhbnRpYWltX3h3YXlfQWlyXzIiOjQyLCAiYW50aWFpbV9iZl93YXlfR2xvYmFsXzExIjowLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzkiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTEiOjAsICJhbnRpYWltX3h3YXlfQWlyXzMiOi0yNCwgImFudGlhaW1fYmZfd2F5X0dsb2JhbF8xMiI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ18xMCI6MCwgImFudGlhaW1feHdheV9BaXItRHVja18xMiI6MCwgImFudGlhaW1feHdheV9BaXJfNCI6MjQsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTMiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMTEiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTMiOjAsICJhbnRpYWltX3h3YXlfQWlyXzUiOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTQiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMTIiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTQiOjAsICJhbnRpYWltX3h3YXlfQWlyXzYiOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTUiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMTMiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTUiOjAsICJhbnRpYWltX3h3YXlfQWlyXzciOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTYiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMTQiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTYiOjAsICJhbnRpYWltX3lhd3JpZ2h0X0Zha2UtRHVjayI6MCwgImFudGlhaW1fYmZfd2F5X0dsb2JhbF8xNyI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ18xNSI6MCwgImFudGlhaW1feHdheV9BaXItRHVja18xNyI6MCwgImFudGlhaW1fc3Bpbm9mZnNldF9GYWtlLUR1Y2siOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMTgiOjAsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMTYiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMTgiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX0Zha2UtRHVjayI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X0dsb2JhbF8xOSI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ18xNyI6MCwgImFudGlhaW1feHdheV9BaXItRHVja18xOSI6MCwgImFudGlhaW1feWF3bW9kaWZpZXJfb2Zmc2V0X0Zha2UtRHVjayI6MCwgImFudGlhaW1feHdheV9TdGFuZGluZ18xOCI6MCwgImFudGlhaW1feHdheV9BaXItRHVja18yMCI6MCwgImFudGlhaW1fYm9keXlhd19GYWtlLUR1Y2siOmZhbHNlLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzE5IjowLCAiYW50aWFpbV9iZl92YWx1ZV9BaXItRHVjayI6MiwgImFudGlhaW1fYm9keXlhd19tb2RlX0Zha2UtRHVjayI6IlN0YXRpYyIsICJhbnRpYWltX3h3YXlfU3RhbmRpbmdfMjAiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18xIjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdF9GYWtlLUR1Y2siOjEsICJhbnRpYWltX2JmX3ZhbHVlX1N0YW5kaW5nIjo1LCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRfRmFrZS1EdWNrIjoxLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMSI6NDgsICJhbnRpYWltX2JvZHl5YXdfc3RlcF9GYWtlLUR1Y2siOjEsICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ18yIjozMiwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fRmFrZS1EdWNrIjoxLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMyI6NDQsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWF4X0Zha2UtRHVjayI6MSwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzQiOjYwLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fRmFrZS1EdWNrIjoxLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfNSI6NDQsICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ182IjowLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfNyI6MCwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzgiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzIwIjowLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfOSI6MCwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzEwIjowLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTEiOjAsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0X01hbnVhbC1BQSI6NjAsICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ18xMiI6MCwgImFudGlhaW1fcGl0Y2htb2RlX01hbnVhbC1BQSI6IkRlZmF1bHQiLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTMiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfMTIiOjAsICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ18xNCI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18xMyI6MCwgImFudGlhaW1feHdheV92YWx1ZV9Dcm91Y2hpbmciOjIsICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ18xNSI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18xNCI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMSI6MCwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzE2IjowLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzE1IjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18yIjowLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTciOjAsICJhbnRpYWltX3JhbmRvbXBpdGNoc19NYW51YWwtQUEiOnt9LCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18zIjowLCAiYW50aWFpbV9iZl93YXlfU3RhbmRpbmdfMTgiOjAsICJhbnRpYWltX2JvZHl5YXdfb3B0aW9uX01hbnVhbC1BQSI6e30sICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzQiOjAsICJhbnRpYWltX2JmX3dheV9TdGFuZGluZ18xOSI6MCwgImFudGlhaW1fYmZfd2F5X0Zha2UtRHVja18xOCI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfNSI6MCwgImFudGlhaW1fYmZfd2F5X1N0YW5kaW5nXzIwIjowLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzE5IjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ182IjowLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzIwIjowLCAiYW50aWFpbV9iYWNrd2FyZF9vZmZzZXRfR2xvYmFsIjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ183IjowLCAiYW50aWFpbV95YXdyaWdodF9NYW51YWwtQUEiOjAsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzE4IjowLCAiYW50aWFpbV9waXRjaG1vZGVfR2xvYmFsIjoiRGVmYXVsdCIsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzgiOjAsICJhbnRpYWltX2JhY2t3YXJkX29mZnNldF9Pbi1QZWVrIjowLCAiYW50aWFpbV9zcGlub2Zmc2V0X01hbnVhbC1BQSI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTkiOjAsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzkiOjAsICJhbnRpYWltX3BpdGNobW9kZV9Pbi1QZWVrIjoiRGVmYXVsdCIsICJhbnRpYWltX3lhd21vZGlmaWVyX01hbnVhbC1BQSI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMjAiOjAsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzEwIjowLCAiYW50aWFpbV9waXRjaF9Pbi1QZWVrIjoiRG93biIsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9NYW51YWwtQUEiOjAsICJhbnRpYWltX2JmX3ZhbHVlX1Nsb3ctV2FsayI6MiwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMTEiOjAsICJhbnRpYWltX3BpdGNoc3RlcF9Pbi1QZWVrIjoxLCAiYW50aWFpbV9ib2R5eWF3X01hbnVhbC1BQSI6ZmFsc2UsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMSI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMTIiOjAsICJhbnRpYWltX3BpdGNoMV9Pbi1QZWVrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9ib2R5eWF3X21vZGVfTWFudWFsLUFBIjoiUmFuZG9tIiwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa18yIjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18xMyI6MCwgImFudGlhaW1fcGl0Y2gyX09uLVBlZWsiOiJEaXNhYmxlZCIsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMyI6MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMTQiOjAsICJhbnRpYWltX3JhbmRvbXBpdGNoc19Pbi1QZWVrIjp7fSwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa180IjowLCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18xNSI6MCwgImFudGlhaW1feWF3YmFzZV9Pbi1QZWVrIjoiTG9jYWwgVmlldyIsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfNSI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzQiOjQsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzE2IjowLCAiYW50aWFpbV95YXdtb2RlX09uLVBlZWsiOiJEaXNhYmxlZCIsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfNiI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzUiOi0zNiwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMTciOjAsICJhbnRpYWltX3lhd3N0ZXBfT24tUGVlayI6MSwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa183IjowLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfNiI6NjUsICJhbnRpYWltX3h3YXlfQ3JvdWNoaW5nXzE4IjowLCAiYW50aWFpbV95YXdsZWZ0X09uLVBlZWsiOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfOCI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzciOi01MCwgImFudGlhaW1feHdheV9Dcm91Y2hpbmdfMTkiOjAsICJhbnRpYWltX3lhd3JpZ2h0X09uLVBlZWsiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfOCI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzgiOjM5LCAiYW50aWFpbV94d2F5X0Nyb3VjaGluZ18yMCI6MCwgImFudGlhaW1fc3Bpbm9mZnNldF9Pbi1QZWVrIjowLCAiYW50aWFpbV9iZl93YXlfQWlyXzkiOjAsICJhbnRpYWltX2JmX3ZhbHVlX0Nyb3VjaGluZyI6MiwgImFudGlhaW1feWF3bW9kaWZpZXJfT24tUGVlayI6IlNwaW4iLCAiYW50aWFpbV9iZl93YXlfQWlyXzEwIjowLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMTAiOjY5LCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzEiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9Pbi1QZWVrIjoxNSwgImFudGlhaW1fYmZfd2F5X0Fpcl8xMSI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzExIjotNTgsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfMiI6MCwgImFudGlhaW1fYm9keXlhd19Pbi1QZWVrIjpmYWxzZSwgImFudGlhaW1fYmZfd2F5X0Fpcl8xMiI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzEyIjo2NCwgImFudGlhaW1fYmZfd2F5X0Nyb3VjaGluZ18zIjowLCAiYW50aWFpbV9ib2R5eWF3X21vZGVfT24tUGVlayI6IlN0YXRpYyIsICJhbnRpYWltX2JmX3dheV9BaXJfMTMiOjAsICJhbnRpYWltX3h3YXlfUnVubmluZ18xMyI6LTU3LCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzQiOjAsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0X09uLVBlZWsiOjEsICJhbnRpYWltX2JmX3dheV9BaXJfMTQiOjAsICJhbnRpYWltX3h3YXlfUnVubmluZ18xNCI6NjUsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfNSI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0X09uLVBlZWsiOjEsICJhbnRpYWltX2JmX3dheV9BaXJfMTUiOjAsICJhbnRpYWltX3h3YXlfUnVubmluZ18xNSI6LTU0LCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzYiOjAsICJhbnRpYWltX2JvZHl5YXdfc3RlcF9Pbi1QZWVrIjoxLCAiYW50aWFpbV9sYnlfb3B0aW9uX09uLVBlZWsiOiJEaXNhYmxlZCIsICJhbnRpYWltX2JmX3dheV9BaXJfMTYiOjAsICJhbnRpYWltX3h3YXlfUnVubmluZ18xNiI6NDMsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfNyI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtYXhfUnVubmluZyI6NjAsICJhbnRpYWltX3h3YXlfdmFsdWVfT24tUGVlayI6MiwgImFudGlhaW1fYmZfd2F5X0Fpcl8xNyI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzE3IjotMzksICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfOCI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWluX1J1bm5pbmciOjEsICJhbnRpYWltX3h3YXlfT24tUGVla18xIjowLCAiYW50aWFpbV9iZl93YXlfQWlyXzE4IjowLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMTgiOjUwLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzkiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1heF9SdW5uaW5nIjo2MCwgImFudGlhaW1feHdheV9Pbi1QZWVrXzIiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfMTkiOjAsICJhbnRpYWltX3h3YXlfUnVubmluZ18xOSI6LTU4LCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzEwIjowLCAiYW50aWFpbV9ib2R5eWF3X29wdGlvbl9SdW5uaW5nIjpbIkppdHRlciJdLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMyI6MCwgImFudGlhaW1fYmZfd2F5X0Fpcl8yMCI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzIwIjoyNCwgImFudGlhaW1fbGJ5X29wdGlvbl9SdW5uaW5nIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X09uLVBlZWtfNCI6MCwgImFudGlhaW1fb3ZlcnJpZGVfQWlyLUR1Y2siOnRydWUsICJhbnRpYWltX2JmX3ZhbHVlX1J1bm5pbmciOjIsICJhbnRpYWltX3h3YXlfdmFsdWVfUnVubmluZyI6NCwgImFudGlhaW1fYmFja3dhcmRfb2Zmc2V0X0Fpci1EdWNrIjowLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ18xIjowLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMSI6LTgsICJhbnRpYWltX3BpdGNobW9kZV9BaXItRHVjayI6IkRlZmF1bHQiLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ18yIjowLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfMiI6OCwgImFudGlhaW1fcGl0Y2hfQWlyLUR1Y2siOiJEb3duIiwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMyI6MCwgImFudGlhaW1feHdheV9SdW5uaW5nXzMiOi00LCAiYW50aWFpbV95YXdtb2RlX0Nyb3VjaGluZyI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfNCI6MCwgImFudGlhaW1fcGl0Y2gxX0Fpci1EdWNrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ181IjowLCAiYW50aWFpbV9waXRjaDJfQWlyLUR1Y2siOiJEaXNhYmxlZCIsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzYiOjAsICJhbnRpYWltX3JhbmRvbXBpdGNoc19BaXItRHVjayI6e30sICJhbnRpYWltX3BpdGNoMV9HbG9iYWwiOiJEaXNhYmxlZCIsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18zIjowLCAiYW50aWFpbV95YXdiYXNlX0Fpci1EdWNrIjoiQXQgVGFyZ2V0IiwgImFudGlhaW1fcGl0Y2gyX0dsb2JhbCI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzQiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX0Nyb3VjaGluZyI6IkRpc2FibGVkIiwgImFudGlhaW1fYm9keXlhd19vcHRpb25fRXhwbG9pdC1EZWZlbnNpdmUiOnt9LCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTQiOjAsICJhbnRpYWltX3JhbmRvbXBpdGNoc19HbG9iYWwiOnt9LCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9BaXIiOjIzLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtYXhfRXhwbG9pdC1EZWZlbnNpdmUiOjEsICJhbnRpYWltX3lhd3N0ZXBfQWlyLUR1Y2siOjIsICJhbnRpYWltX3lhd3JpZ2h0X0Nyb3VjaGluZyI6NywgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWluX0V4cGxvaXQtRGVmZW5zaXZlIjoxLCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfNiI6MCwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV82IjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfNiI6MCwgImFudGlhaW1fYm9keXlhd19Dcm91Y2hpbmciOmZhbHNlLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE3IjowLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzgiOjAsICJhbnRpYWltX3lhd21vZGVfR2xvYmFsIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzciOjAsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWF4X0V4cGxvaXQtRGVmZW5zaXZlIjoxLCAiYW50aWFpbV9ib2R5eWF3X21vZGVfQ3JvdWNoaW5nIjoiU3RhdGljIiwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8xNiI6MCwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8xOCI6MCwgImFudGlhaW1feWF3c3RlcF9HbG9iYWwiOjEsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfOCI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fRXhwbG9pdC1EZWZlbnNpdmUiOjEsICJhbnRpYWltX3NwaW5vZmZzZXRfQWlyLUR1Y2siOjAsICJhbnRpYWltX2JvZHl5YXdfb3B0aW9uX0FpciI6WyJBdm9pZCBPdmVybGFwIl0sICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzMiOjAsICJhbnRpYWltX3lhd2xlZnRfR2xvYmFsIjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzkiOjAsICJhbnRpYWltX3JhbmRvbXBpdGNoc19GYWtlLUR1Y2siOnt9LCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTgiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja185IjowLCAiYW50aWFpbV9iZl93YXlfRmFrZS1EdWNrXzE2IjowLCAiYW50aWFpbV95YXdyaWdodF9HbG9iYWwiOjAsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzciOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdF9FeHBsb2l0LURlZmVuc2l2ZSI6NjAsICJhbnRpYWltX2JvZHl5YXdfc3RlcF9Dcm91Y2hpbmciOjEsICJhbnRpYWltX292ZXJyaWRlX1J1bm5pbmciOnRydWUsICJhbnRpYWltX3BpdGNoc3RlcF9NYW51YWwtQUEiOjEsICJhbnRpYWltX3NwaW5vZmZzZXRfR2xvYmFsIjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzExIjowLCAiYW50aWFpbV9waXRjaDFfTWFudWFsLUFBIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1pbl9Dcm91Y2hpbmciOjEsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0X0V4cGxvaXQtRGVmZW5zaXZlIjo2MCwgImFudGlhaW1fYm9keXlhd19vcHRpb25fT24tUGVlayI6e30sICJhbnRpYWltX3lhd21vZGlmaWVyX0dsb2JhbCI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfOSI6MCwgImFudGlhaW1fYmZfdmFsdWVfT24tUGVlayI6MiwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtYXhfQ3JvdWNoaW5nIjoxLCAiYW50aWFpbV94d2F5X09uLVBlZWtfOCI6MCwgImFudGlhaW1fbWFudWFsIjoiQmFja3dhcmQiLCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfMTMiOjAsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzEwIjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTMiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdF9TbG93LVdhbGsiOjEsICJhbnRpYWltX2JvZHl5YXdfaW52ZXJ0IjpmYWxzZSwgImFudGlhaW1fYm9keXlhd19tb2RlX0V4cGxvaXQtRGVmZW5zaXZlIjoiU3RhdGljIiwgImFudGlhaW1fYm9keXlhd19HbG9iYWwiOmZhbHNlLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ18xMSI6MCwgImFudGlhaW1fcGl0Y2gyX01hbnVhbC1BQSI6IkRpc2FibGVkIiwgImFudGlhaW1fYm9keXlhd19zdGVwX1Nsb3ctV2FsayI6MSwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzIiOjAsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTgiOjAsICJhbnRpYWltX2JvZHl5YXdfbW9kZV9HbG9iYWwiOiJTdGF0aWMiLCAiYW50aWFpbV9vdmVycmlkZV9HbG9iYWwiOnRydWUsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTMiOjAsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWluX1Nsb3ctV2FsayI6MSwgImFudGlhaW1fb3ZlcnJpZGVfbWFudWFscyI6WyJMZWZ0IiwgIlJpZ2h0Il0sICJhbnRpYWltX2xieV9vcHRpb25fRmFrZS1EdWNrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdF9HbG9iYWwiOjEsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzEzIjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzUiOjAsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWF4X1Nsb3ctV2FsayI6MSwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV80IjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzMiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18xNyI6MCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMTQiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9FeHBsb2l0LURlZmVuc2l2ZSI6LTEyMCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWluX1Nsb3ctV2FsayI6MSwgImFudGlhaW1feHdheV92YWx1ZV9FeHBsb2l0LURlZmVuc2l2ZSI6MiwgImFudGlhaW1fbGJ5X29wdGlvbl9FeHBsb2l0LURlZmVuc2l2ZSI6Ik9wcG9zaXRlIiwgImFudGlhaW1fYm9keXlhd19zdGVwX0dsb2JhbCI6MSwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMTUiOjAsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMSI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWF4X1Nsb3ctV2FsayI6MSwgImFudGlhaW1feWF3bW9kaWZpZXJfRXhwbG9pdC1EZWZlbnNpdmUiOiJDZW50ZXIiLCAiYW50aWFpbV9ib2R5eWF3X3N0ZXBfRXhwbG9pdC1EZWZlbnNpdmUiOjEsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18xOSI6MCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMTYiOjAsICJhbnRpYWltX3lhd2xlZnRfQ3JvdWNoaW5nIjo3LCAiYW50aWFpbV9ib2R5eWF3X29wdGlvbl9TbG93LVdhbGsiOnt9LCAiYW50aWFpbV9iYWNrd2FyZF9vZmZzZXRfTWFudWFsLUFBIjowLCAiYW50aWFpbV9ib2R5eWF3X0V4cGxvaXQtRGVmZW5zaXZlIjpmYWxzZSwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtYXhfR2xvYmFsIjoxLCAiYW50aWFpbV9iZl93YXlfUnVubmluZ18xNyI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMTciOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMjAiOjAsICJhbnRpYWltX292ZXJyaWRlX0Nyb3VjaGluZyI6dHJ1ZSwgImFudGlhaW1feWF3bW9kaWZpZXJfb2Zmc2V0X0Nyb3VjaGluZyI6MCwgImFudGlhaW1fYmZfdmFsdWVfRXhwbG9pdC1EZWZlbnNpdmUiOjIsICJhbnRpYWltX292ZXJyaWRlX0Zha2UtRHVjayI6ZmFsc2UsICJhbnRpYWltX3lhd2Jhc2VfR2xvYmFsIjoiQXQgVGFyZ2V0IiwgImFudGlhaW1fb3ZlcnJpZGVfU3RhbmRpbmciOnRydWUsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzgiOjAsICJhbnRpYWltX3BsYXllcmNvbmRpdGlvbiI6IlJ1bm5pbmciLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtYXhfR2xvYmFsIjoxLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMSI6MCwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa18xMiI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMSI6LTEyLCAiYW50aWFpbV95YXdiYXNlX01hbnVhbC1BQSI6IkxvY2FsIFZpZXciLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdF9Dcm91Y2hpbmciOjEsICJhbnRpYWltX2JvZHl5YXdfb3B0aW9uX0dsb2JhbCI6e30sICJhbnRpYWltX3BpdGNobW9kZV9GYWtlLUR1Y2siOiJEZWZhdWx0IiwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8yMCI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMiI6MTIsICJhbnRpYWltX3NwaW5vZmZzZXRfQ3JvdWNoaW5nIjowLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzE5IjowLCAiYW50aWFpbV9sYnlfb3B0aW9uX0dsb2JhbCI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzMiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdF9Dcm91Y2hpbmciOjEsICJhbnRpYWltX3BpdGNoX1N0YW5kaW5nIjoiRG93biIsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTciOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTUiOjAsICJhbnRpYWltX3h3YXlfdmFsdWVfR2xvYmFsIjozLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfNCI6MCwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV8xNCI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfNCI6NiwgImFudGlhaW1feHdheV9Pbi1QZWVrXzciOjAsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0X1Nsb3ctV2FsayI6MSwgImFudGlhaW1feHdheV9HbG9iYWxfMSI6MCwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzUiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTMiOjAsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzUiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9HbG9iYWwiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTIiOjAsICJhbnRpYWltX3h3YXlfR2xvYmFsXzIiOjAsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV82IjowLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzExIjowLCAiYW50aWFpbV9waXRjaDJfU3RhbmRpbmciOiJEaXNhYmxlZCIsICJhbnRpYWltX2JhY2t3YXJkX29mZnNldF9Dcm91Y2hpbmciOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMTAiOjAsICJhbnRpYWltX3h3YXlfR2xvYmFsXzMiOjAsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV83IjowLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa183IjotMTIsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfOSI6MCwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV83IjowLCAiYW50aWFpbV94d2F5X0dsb2JhbF80IjowLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfOCI6MCwgImFudGlhaW1fb3ZlcnJpZGVfRXhwbG9pdC1EZWZlbnNpdmUiOnRydWUsICJhbnRpYWltX3lhd2Jhc2VfU3RhbmRpbmciOiJBdCBUYXJnZXQiLCAiYW50aWFpbV9vdmVycmlkZV9NYW51YWwtQUEiOnRydWUsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfNiI6MCwgImFudGlhaW1feHdheV9HbG9iYWxfNSI6MCwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzkiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1heF9Dcm91Y2hpbmciOjEsICJhbnRpYWltX3lhd21vZGVfU3RhbmRpbmciOiJEaXNhYmxlZCIsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWluX0dsb2JhbCI6MSwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMTkiOjAsICJhbnRpYWltX3h3YXlfR2xvYmFsXzYiOjAsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV8xMCI6MCwgImFudGlhaW1fYm9keXlhd19vcHRpb25fQ3JvdWNoaW5nIjp7fSwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTAiOjAsICJhbnRpYWltX2xieV9vcHRpb25fU2xvdy1XYWxrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fR2xvYmFsIjoxLCAiYW50aWFpbV94d2F5X0dsb2JhbF83IjowLCAiYW50aWFpbV9iZl93YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTEiOjAsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzkiOi02LCAiYW50aWFpbV95YXdsZWZ0X1N0YW5kaW5nIjowLCAiYW50aWFpbV94d2F5X1J1bm5pbmdfOSI6LTUwLCAiYW50aWFpbV9iYWNrd2FyZF9vZmZzZXRfRmFrZS1EdWNrIjowLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa182IjoxMiwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzEyIjowLCAiYW50aWFpbV9waXRjaHN0ZXBfRmFrZS1EdWNrIjoxLCAiYW50aWFpbV95YXdyaWdodF9TdGFuZGluZyI6MCwgImFudGlhaW1fcGl0Y2hzdGVwX1N0YW5kaW5nIjoxLCAiYW50aWFpbV9waXRjaDFfRmFrZS1EdWNrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9waXRjaDFfU3RhbmRpbmciOiJEaXNhYmxlZCIsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV8xMyI6MCwgImFudGlhaW1fcGl0Y2gyX0Zha2UtRHVjayI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTMiOjAsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzMiOi02LCAiYW50aWFpbV95YXdsZWZ0X01hbnVhbC1BQSI6MCwgImFudGlhaW1fcmFuZG9tcGl0Y2hzX1N0YW5kaW5nIjp7fSwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE0IjowLCAiYW50aWFpbV95YXdzdGVwX01hbnVhbC1BQSI6MSwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTQiOjAsICJhbnRpYWltX3lhd21vZGVfTWFudWFsLUFBIjoiRGlzYWJsZWQiLCAiYW50aWFpbV95YXdsZWZ0X0Fpci1EdWNrIjozMSwgImFudGlhaW1fcGl0Y2hzdGVwX0dsb2JhbCI6MSwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE1IjowLCAiYW50aWFpbV9waXRjaF9NYW51YWwtQUEiOiJEb3duIiwgImFudGlhaW1feHdheV9BaXJfOCI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMTUiOjAsICJhbnRpYWltX3BpdGNoX0V4cGxvaXQtRGVmZW5zaXZlIjoiRGlzYWJsZWQiLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa18xMiI6MCwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE2IjowLCAiYW50aWFpbV9waXRjaF9HbG9iYWwiOiJEb3duIiwgImFudGlhaW1feHdheV9BaXJfOSI6MCwgImFudGlhaW1feHdheV9Pbi1QZWVrXzIwIjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTkiOjAsICJhbnRpYWltX3BpdGNobW9kZV9FeHBsb2l0LURlZmVuc2l2ZSI6IlJhbmRvbSIsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV8xNyI6MCwgImFudGlhaW1feWF3bW9kaWZpZXJfU3RhbmRpbmciOiJDZW50ZXIiLCAiYW50aWFpbV94d2F5X0Fpcl8xMCI6MCwgImFudGlhaW1feHdheV9Pbi1QZWVrXzE2IjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTUiOjAsICJhbnRpYWltX3h3YXlfT24tUGVla18xMiI6MCwgImFudGlhaW1fYmZfd2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE4IjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTEiOjAsICJhbnRpYWltX3h3YXlfQWlyXzExIjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtYXhfT24tUGVlayI6MSwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWluX09uLVBlZWsiOjEsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0bWF4X09uLVBlZWsiOjEsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV8xOSI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fT24tUGVlayI6MSwgImFudGlhaW1feHdheV9BaXJfMTIiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfMTciOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfMTEiOjAsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzUiOjAsICJhbnRpYWltX2JmX3dheV9FeHBsb2l0LURlZmVuc2l2ZV8yMCI6MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfNCI6MCwgImFudGlhaW1feHdheV9BaXJfMTMiOjAsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzIiOjAsICJhbnRpYWltX3h3YXlfRmFrZS1EdWNrXzEiOjAsICJhbnRpYWltX3h3YXlfdmFsdWVfRmFrZS1EdWNrIjoyLCAiYW50aWFpbV9waXRjaHN0ZXBfQ3JvdWNoaW5nIjoxLCAiYW50aWFpbV95YXdsZWZ0X0Zha2UtRHVjayI6MCwgImFudGlhaW1feHdheV9BaXJfMTQiOjAsICJhbnRpYWltX3lhd3N0ZXBfRmFrZS1EdWNrIjoxLCAiYW50aWFpbV95YXdtb2RlX0Zha2UtRHVjayI6IkRpc2FibGVkIiwgImFudGlhaW1feWF3YmFzZV9GYWtlLUR1Y2siOiJMb2NhbCBWaWV3IiwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzIwIjowLCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfMTgiOjAsICJhbnRpYWltX3h3YXlfQWlyXzE1IjowLCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfMTYiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18xNSI6MCwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzE0IjowLCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfMTIiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18xMSI6MCwgImFudGlhaW1feHdheV9BaXJfMTYiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18xMCI6MCwgImFudGlhaW1fYmZfd2F5X0Fpci1EdWNrXzgiOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja183IjowLCAiYW50aWFpbV9iZl93YXlfQWlyLUR1Y2tfNSI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWF4X1N0YW5kaW5nIjo2MCwgImFudGlhaW1feHdheV9BaXJfMTciOjAsICJhbnRpYWltX2JmX3dheV9BaXItRHVja18yIjowLCAiYW50aWFpbV9iZl92YWx1ZV9BaXIiOjIsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfNiI6MCwgImFudGlhaW1feHdheV9BaXItRHVja181IjowLCAiYW50aWFpbV94d2F5X3ZhbHVlX1N0YW5kaW5nIjoyLCAiYW50aWFpbV94d2F5X0Fpcl8xOCI6MCwgImFudGlhaW1feHdheV9BaXItRHVja180IjowLCAiYW50aWFpbV9yYW5kb21waXRjaHNfQ3JvdWNoaW5nIjp7fSwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMTIiOjAsICJhbnRpYWltX2xieV9vcHRpb25fU3RhbmRpbmciOiJTd2F5IiwgImFudGlhaW1fYmZfd2F5X0Nyb3VjaGluZ18xMSI6MCwgImFudGlhaW1feHdheV9BaXJfMTkiOjAsICJhbnRpYWltX2JhY2t3YXJkX29mZnNldF9TdGFuZGluZyI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0X0Fpci1EdWNrIjoxLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdF9BaXItRHVjayI6MSwgImFudGlhaW1fYm9keXlhd19vcHRpb25fU3RhbmRpbmciOlsiQXZvaWQgT3ZlcmxhcCJdLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzEyIjowLCAiYW50aWFpbV94d2F5X0Fpcl8yMCI6MCwgImFudGlhaW1fYmZfd2F5X0Fpcl80IjowLCAiYW50aWFpbV9ib2R5eWF3X21vZGVfQWlyLUR1Y2siOiJTdGF0aWMiLCAiYW50aWFpbV9ib2R5eWF3X0Fpci1EdWNrIjpmYWxzZSwgImFudGlhaW1fYmZfd2F5X0Fpcl81IjowLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzEzIjowLCAiYW50aWFpbV94d2F5X1N0YW5kaW5nXzEiOjAsICJhbnRpYWltX2JmX3dheV9BaXJfNiI6MCwgImFudGlhaW1feWF3bW9kZV9BaXItRHVjayI6IkppdHRlciIsICJhbnRpYWltX2JmX3dheV9BaXJfNyI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWluX1N0YW5kaW5nIjoxLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzE0IjowLCAiYW50aWFpbV9iZl93YXlfQWlyXzEiOjAsICJhbnRpYWltX3lhd3N0ZXBfQ3JvdWNoaW5nIjoyLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa18xMSI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fU3RhbmRpbmciOjEsICJhbnRpYWltX3BpdGNoX0Zha2UtRHVjayI6IkRpc2FibGVkIiwgImFudGlhaW1fYmZfd2F5X0Nyb3VjaGluZ18xNSI6MCwgImFudGlhaW1fYmZfd2F5X0Fpcl8yIjowLCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzEzIjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fQ3JvdWNoaW5nIjoxLCAiYW50aWFpbV9ib2R5eWF3X3N0ZXBfU3RhbmRpbmciOjM5LCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzExIjowLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzE2IjowLCAiYW50aWFpbV9iZl93YXlfQWlyXzMiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdF9HbG9iYWwiOjEsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMTAiOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdF9TdGFuZGluZyI6NjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfOSI6MCwgImFudGlhaW1fYmZfd2F5X0Nyb3VjaGluZ18xNyI6MCwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMSI6MCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfMTgiOjAsICJhbnRpYWltX2JvZHl5YXdfbGVmdGxpbWl0X1N0YW5kaW5nIjo2MCwgImFudGlhaW1fcGl0Y2hfQ3JvdWNoaW5nIjoiRG93biIsICJhbnRpYWltX3BpdGNoMl9Dcm91Y2hpbmciOiJEaXNhYmxlZCIsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfMTgiOjAsICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzIiOjAsICJhbnRpYWltX3lhd21vZGlmaWVyX29mZnNldF9TdGFuZGluZyI6MzYsICJhbnRpYWltX2JvZHl5YXdfbW9kZV9TdGFuZGluZyI6IlN0YXRpYyIsICJhbnRpYWltX2xieV9vcHRpb25fQ3JvdWNoaW5nIjoiRGlzYWJsZWQiLCAiYW50aWFpbV95YXdiYXNlX0Nyb3VjaGluZyI6IkF0IFRhcmdldCIsICJhbnRpYWltX2JmX3dheV9Dcm91Y2hpbmdfMTkiOjAsICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzMiOjAsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMiI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTYiOjAsICJhbnRpYWltX2JvZHl5YXdfc3RlcF9BaXItRHVjayI6MSwgImFudGlhaW1feWF3bW9kaWZpZXJfb2Zmc2V0X0Fpci1EdWNrIjowLCAiYW50aWFpbV9iZl93YXlfQ3JvdWNoaW5nXzIwIjowLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV80IjowLCAiYW50aWFpbV9ib2R5eWF3X3JpZ2h0bGltaXRtaW5fTWFudWFsLUFBIjozMCwgImFudGlhaW1fYmZfd2F5X1J1bm5pbmdfOCI6MCwgImFudGlhaW1fYm9keXlhd19sZWZ0bGltaXRtaW5fQWlyLUR1Y2siOjEsICJhbnRpYWltX3h3YXlfU2xvdy1XYWxrXzE1IjowLCAiYW50aWFpbV9vdmVycmlkZV9TbG93LVdhbGsiOnRydWUsICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzUiOjAsICJhbnRpYWltX2JmX3dheV9HbG9iYWxfMSI6MCwgImFudGlhaW1feHdheV92YWx1ZV9TbG93LVdhbGsiOjEwLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9BaXItRHVjayI6MSwgImFudGlhaW1fYmFja3dhcmRfb2Zmc2V0X1Nsb3ctV2FsayI6MCwgImFudGlhaW1fcGl0Y2hzdGVwX0V4cGxvaXQtRGVmZW5zaXZlIjoyLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV82IjowLCAiYW50aWFpbV94d2F5X0dsb2JhbF84IjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9TdGFuZGluZyI6NjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1pbl9BaXItRHVjayI6MSwgImFudGlhaW1fcGl0Y2htb2RlX1Nsb3ctV2FsayI6IkRlZmF1bHQiLCAiYW50aWFpbV9waXRjaDFfRXhwbG9pdC1EZWZlbnNpdmUiOiJGYWtlIFVwIiwgImFudGlhaW1feHdheV9NYW51YWwtQUFfNyI6MCwgImFudGlhaW1feHdheV9HbG9iYWxfMTIiOjAsICJhbnRpYWltX3NwaW5vZmZzZXRfU3RhbmRpbmciOjAsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1heF9BaXItRHVjayI6MSwgImFudGlhaW1fcGl0Y2hfU2xvdy1XYWxrIjoiRG93biIsICJhbnRpYWltX3BpdGNoMl9FeHBsb2l0LURlZmVuc2l2ZSI6IkRvd24iLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV84IjowLCAiYW50aWFpbV94d2F5X1Nsb3ctV2Fsa184Ijo2LCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzE3IjowLCAiYW50aWFpbV9ib2R5eWF3X29wdGlvbl9BaXItRHVjayI6e30sICJhbnRpYWltX3BpdGNoc3RlcF9TbG93LVdhbGsiOjEsICJhbnRpYWltX3JhbmRvbXBpdGNoc19FeHBsb2l0LURlZmVuc2l2ZSI6WyJEb3duIiwgIkZha2UgVXAiXSwgImFudGlhaW1feHdheV9NYW51YWwtQUFfOSI6MCwgImFudGlhaW1feHdheV9TbG93LVdhbGtfMTciOjAsICJhbnRpYWltX2JvZHl5YXdfU3RhbmRpbmciOmZhbHNlLCAiYW50aWFpbV9sYnlfb3B0aW9uX0Fpci1EdWNrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV9waXRjaDFfU2xvdy1XYWxrIjoiRGlzYWJsZWQiLCAiYW50aWFpbV95YXdiYXNlX0V4cGxvaXQtRGVmZW5zaXZlIjoiQXQgVGFyZ2V0IiwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTAiOjAsICJhbnRpYWltX3lhd3N0ZXBfU3RhbmRpbmciOjEsICJhbnRpYWltX3lhd3JpZ2h0X0Fpci1EdWNrIjozMSwgImFudGlhaW1feHdheV92YWx1ZV9BaXItRHVjayI6MiwgImFudGlhaW1fcGl0Y2gyX1Nsb3ctV2FsayI6IkRpc2FibGVkIiwgImFudGlhaW1feWF3bW9kZV9FeHBsb2l0LURlZmVuc2l2ZSI6IkRpc2FibGVkIiwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTEiOjAsICJhbnRpYWltX2JmX3dheV9SdW5uaW5nXzIwIjowLCAiYW50aWFpbV9vdmVycmlkZV9Pbi1QZWVrIjpmYWxzZSwgImFudGlhaW1feHdheV9BaXItRHVja18xIjowLCAiYW50aWFpbV9yYW5kb21waXRjaHNfU2xvdy1XYWxrIjp7fSwgImFudGlhaW1feWF3c3RlcF9FeHBsb2l0LURlZmVuc2l2ZSI6MiwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTIiOjAsICJhbnRpYWltX292ZXJyaWRlX0FpciI6dHJ1ZSwgImFudGlhaW1feHdheV9HbG9iYWxfMTYiOjAsICJhbnRpYWltX3h3YXlfQWlyLUR1Y2tfMiI6MCwgImFudGlhaW1feWF3YmFzZV9TbG93LVdhbGsiOiJBdCBUYXJnZXQiLCAiYW50aWFpbV95YXdsZWZ0X0V4cGxvaXQtRGVmZW5zaXZlIjo5MCwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTMiOjAsICJhbnRpYWltX2JhY2t3YXJkX29mZnNldF9BaXIiOjAsICJhbnRpYWltX3BpdGNobW9kZV9TdGFuZGluZyI6IkRlZmF1bHQiLCAiYW50aWFpbV94d2F5X0Fpci1EdWNrXzMiOjAsICJhbnRpYWltX3lhd21vZGVfU2xvdy1XYWxrIjoiSml0dGVyIiwgImFudGlhaW1feWF3cmlnaHRfRXhwbG9pdC1EZWZlbnNpdmUiOjkwLCAiYW50aWFpbV94d2F5X01hbnVhbC1BQV8xNCI6MCwgImFudGlhaW1feHdheV9HbG9iYWxfMTQiOjAsICJhbnRpYWltX3h3YXlfR2xvYmFsXzExIjowLCAiYW50aWFpbV94d2F5X09uLVBlZWtfMTciOjAsICJhbnRpYWltX3lhd3N0ZXBfU2xvdy1XYWxrIjoxLCAiYW50aWFpbV9zcGlub2Zmc2V0X0V4cGxvaXQtRGVmZW5zaXZlIjozMiwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTUiOjAsICJhbnRpYWltX2JmX3dheV9GYWtlLUR1Y2tfMyI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMTEiOjAsICJhbnRpYWltX2xieV9vcHRpb25fTWFudWFsLUFBIjoiRGlzYWJsZWQiLCAiYW50aWFpbV95YXdsZWZ0X1Nsb3ctV2FsayI6MzYsICJhbnRpYWltX2JvZHl5YXdfcmlnaHRsaW1pdG1heF9GYWtlLUR1Y2siOjEsICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzE2IjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1pbl9NYW51YWwtQUEiOjMwLCAiYW50aWFpbV94d2F5X3ZhbHVlX01hbnVhbC1BQSI6MiwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0X01hbnVhbC1BQSI6NjAsICJhbnRpYWltX3lhd3JpZ2h0X1Nsb3ctV2FsayI6MzYsICJhbnRpYWltX2JvZHl5YXdfb3B0aW9uX0Zha2UtRHVjayI6e30sICJhbnRpYWltX3h3YXlfTWFudWFsLUFBXzE3IjowLCAiYW50aWFpbV9iZl93YXlfT24tUGVla18xMiI6MCwgImFudGlhaW1fYm9keXlhd19yaWdodGxpbWl0bWF4X01hbnVhbC1BQSI6NjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzE5IjowLCAiYW50aWFpbV9zcGlub2Zmc2V0X1Nsb3ctV2FsayI6MCwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa18xNCI6MCwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTgiOjAsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTkiOjAsICJhbnRpYWltX3h3YXlfT24tUGVla185IjowLCAiYW50aWFpbV9ib2R5eWF3X2xlZnRsaW1pdG1heF9NYW51YWwtQUEiOjYwLCAiYW50aWFpbV95YXdtb2RpZmllcl9TbG93LVdhbGsiOiJTcGluIiwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa18xNSI6MCwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMTkiOjAsICJhbnRpYWltX3h3YXlfR2xvYmFsXzkiOjAsICJhbnRpYWltX2JvZHl5YXdfc3RlcF9NYW51YWwtQUEiOjEsICJhbnRpYWltX3h3YXlfR2xvYmFsXzEwIjowLCAiYW50aWFpbV95YXdtb2RpZmllcl9vZmZzZXRfU2xvdy1XYWxrIjoxMiwgImFudGlhaW1fYmZfd2F5X1Nsb3ctV2Fsa18xNiI6MCwgImFudGlhaW1feHdheV9NYW51YWwtQUFfMjAiOjAsICJhbnRpYWltX3h3YXlfR2xvYmFsXzEzIjowLCAiYW50aWFpbV9ib2R5eWF3X1Nsb3ctV2FsayI6ZmFsc2UsICJhbnRpYWltX3h3YXlfR2xvYmFsXzE1IjowLCAiYW50aWFpbV9iZl92YWx1ZV9HbG9iYWwiOjIsICJhbnRpYWltX2JmX3ZhbHVlX01hbnVhbC1BQSI6MiwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfNiI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfNyI6MCwgImFudGlhaW1fYm9keXlhd19tb2RlX1Nsb3ctV2FsayI6IlN0YXRpYyIsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzkiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzEwIjowLCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzE4IjowLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzEiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzEzIjowLCAiYW50aWFpbV9iZl93YXlfT24tUGVla18xNCI6MCwgImFudGlhaW1fYmZfd2F5X09uLVBlZWtfMTYiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzE4IjowLCAiYW50aWFpbV9iZl93YXlfU2xvdy1XYWxrXzE5IjowLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzIiOjAsICJhbnRpYWltX2JmX3dheV9Pbi1QZWVrXzUiOjAsICJhbnRpYWltX3N3aXRjaCI6dHJ1ZSwgImFudGlhaW1feWF3bW9kaWZpZXJfQWlyLUR1Y2siOiJEaXNhYmxlZCIsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMjAiOjAsICJhbnRpYWltX2JmX3dheV9TbG93LVdhbGtfMjAiOjAsICJhbnRpYWltX2JmX3dheV9NYW51YWwtQUFfMyI6MCwgImFudGlhaW1fYm9keXlhd19SdW5uaW5nIjpmYWxzZSwgImFudGlhaW1feHdheV9Pbi1QZWVrXzUiOjAsICJhbnRpYWltX2JhY2t3YXJkX29mZnNldF9SdW5uaW5nIjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzE2IjowLCAiYW50aWFpbV94d2F5X0Zha2UtRHVja182IjowLCAiYW50aWFpbV9iZl93YXlfTWFudWFsLUFBXzQiOjAsICJhbnRpYWltX3h3YXlfRXhwbG9pdC1EZWZlbnNpdmVfMTUiOjAsICJhbnRpYWltX3h3YXlfT24tUGVla18xMCI6MCwgImFudGlhaW1fcGl0Y2htb2RlX1J1bm5pbmciOiJEZWZhdWx0IiwgImFudGlhaW1feHdheV9FeHBsb2l0LURlZmVuc2l2ZV8xNCI6MCwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfNyI6MCwgImFudGlhaW1fYmZfd2F5X01hbnVhbC1BQV81IjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzEyIjowLCAiYW50aWFpbV94d2F5X0V4cGxvaXQtRGVmZW5zaXZlXzEwIjowLCAiYW50aWFpbV9waXRjaF9SdW5uaW5nIjoiRG93biIsICJhbnRpYWltX3BpdGNoc3RlcF9BaXItRHVjayI6MSwgImFudGlhaW1feHdheV9GYWtlLUR1Y2tfOCI6MH0==",
     username = common_get_username(),
     useravatar = render.load_image(network_get("https://en.neverlose.cc/static/avatars/" .. common_get_username() .. ".png"), vector(18, 18)),
     screen_size = render_screen_size(),
 
     fonts = {
-        calibriba = render_load_font("Calibri", 24, "ba") or error('Fonts Error: Calibri Not Found'),
+        calibri24ba = render_load_font("Calibri", 24, "ba") or error('Fonts Error: Calibri Not Found'),
+        calibri14a = render_load_font("Calibri", 14, "a") or error('Fonts Error: Calibri Not Found'),
+        verdana14au = render_load_font("Verdana", 14, "au") or error('Fonts Error: Verdana Not Found'),
         pixel14odu = render_load_font("nl\\Crow\\Fonts\\smallest_pixel-7.ttf", 14, "odu") or error('Fonts Error: Smallest Pixel-7 Not Found'),
+        pixel14od = render_load_font("nl\\Crow\\Fonts\\smallest_pixel-7.ttf", 14, "od") or error('Fonts Error: Smallest Pixel-7 Not Found'),
     },
 
     gif_crc32 = -763495444,
@@ -1334,6 +1477,35 @@ G8.defs = {
         "Custom-Builder",
     },
 
+    keybinds = {
+        ["Double Tap"] = "双发",
+        ["Hide Shots"] = "不抬头",
+        ["Slow Walk"] = "慢走",
+        ["Peek Assist"] = "自动拉回",
+        ["Manual Anti-Aim"] = "手动AA",
+        ["Force Thirdperson"] = "第三人称",
+        ["Fake Duck"] = "假蹲",
+        ["Override Key"] = "伤害覆盖",
+        ["Body Aim"] = "打击身体",
+        ["Safe Points"] = "打击安全点",
+        ["Hitboxs"] = "打击部位",
+        ["Multipoint"] = "多点",
+        ["Hit Chance"] = "命中率",
+        ["Minimum Damage"] = "最小伤害",
+
+
+
+        ["on"] = "开启",
+        ["off"] = "关闭",
+        ["override"] = "覆盖",
+        ["Right"] = "向右",
+        ["Left"] = "向左",
+        ["Forward"] = "向前",
+        ["Backward"] = "向后",
+        ["Default"] = "默认",
+        ["Prefer"] = "优先",
+        ["Force"] = "强制",
+    },
 
     tabs = {
         main = ui_get_icon("home") .. G8.funs.gradient_text(48, 207, 208, 255, 51, 8, 103, 255, " Main"),
@@ -1876,6 +2048,8 @@ G8.feat.anti_aim = function (cmd)
     if G8.refs.ragebot.double_tap.switch:get() and rage_exploit:get() ~= 1 and UI.get("antiaim_override_Exploit-Defensive") and not G8.refs.antiaim.misc.fake_duck:get() and G8.vars.defensive_tick > 0 then
         state = "Exploit-Defensive"
         G8.vars.defensive_tick = G8.vars.defensive_tick - 1
+    elseif G8.vars.defensive_tick > 0 then
+        G8.vars.defensive_tick = 0
     end
 
     local offset = 0
@@ -2218,13 +2392,18 @@ G8.feat.fake_lag = function (cmd)
     if G8.vars.send_tick > 2 then
         if not G8.refs.ragebot.double_tap.switch:get() and not G8.refs.ragebot.hide_shot.switch:get() then
             cmd.no_choke = true
+            cmd.send_packet = false
             G8.refs.antiaim.body_yaw.switch:override(false)
+            cvar["sv_maxusrcmdprocessticks"]:int(1)
         end
         G8.vars.send_tick = G8.vars.send_tick - 1
     elseif G8.vars.send_tick > 0 and G8.vars.send_tick <= 2 then
+        cmd.no_choke = false
         cmd.send_packet = false
-        G8.refs.antiaim.body_yaw.switch:override(false)
         G8.vars.send_tick = G8.vars.send_tick - 1
+        if not G8.refs.ragebot.double_tap.switch:get() and not G8.refs.ragebot.hide_shot.switch:get() then
+            cvar["sv_maxusrcmdprocessticks"]:int(20)
+        end
     else
         G8.refs.antiaim.body_yaw.switch:override()
     end
@@ -2350,7 +2529,6 @@ G8.feat.skeet_indicator = function ()
     end
 end
 
---{"Watermark", "Spectators", "Keybinds"}
 G8.feat.solusui = function ()
     if UI.contains("visual_solusui", "Watermark") then
         local base_x = G8.defs.screen_size.x - 6
@@ -2366,6 +2544,129 @@ G8.feat.solusui = function ()
 
         render_text(G8.defs.fonts.pixel14odu, vector(base_x - text_size_x - 5, base_y + 3), color(255,255,255,255), nil, watermark_text)
         render_texture(G8.defs.useravatar, vector(base_x - text_size_x + 6, base_y + 3), vector(18, 18))
+    end
+
+    if UI.contains("visual_solusui", "Keybinds") then
+        local position = G8.ui_handler.get("Keybinds")
+        local cheatbinds = ui.get_binds()
+        local active_bind_list = {}
+        local max_x = 165
+
+        for i = #cheatbinds, 1, -1 do
+            local binds = cheatbinds[i]
+            local bind_name = binds.name
+            local bind_value = binds.value
+
+            if bind_value == true then
+                bind_value = 'on'
+            end
+
+            if bind_value == false then
+                bind_value = 'Off'
+            end
+
+            if type(bind_value) == "number" then
+                bind_value = tostring(bind_value)
+            end
+
+            if type(bind_value) == "table" then
+                bind_value = 'override'
+            end
+
+            if UI.get("visual_solusui_language") == "zh_CN" then
+                bind_value = G8.defs.keybinds[bind_value] or bind_value
+                bind_name = G8.defs.keybinds[bind_name] or bind_name
+            end
+
+            bind_value = "[" .. bind_value .. "]"
+
+
+            local bind_name_size = render.measure_text(1, 'o', bind_name)
+            local bind_value_size = render.measure_text(G8.defs.fonts.verdana14au, 'o', bind_value)
+
+            local width_k = bind_value_size.x + bind_name_size.x + 25
+
+            if width_k > 155 then
+                if width_k > max_x then
+                    max_x = width_k
+                end
+            end
+
+            if binds.active then
+                table.insert(active_bind_list, {name = bind_name, value = bind_value, value_size = bind_value_size})
+            end
+        end
+
+        if ui_get_alpha() > 0.3 or #active_bind_list > 0 then
+            render.rect(position, vector(position.x + max_x, position.y + 26), color(0,0,0,220), 5)
+            render.text(G8.defs.fonts.verdana14au, vector(position.x + (max_x / 2), position.y + 13), color(255, 255, 255, 255), "c", "Keybinds")
+
+            local add_y = 0
+            local width = position.x + max_x
+
+            for i = 1, #active_bind_list do
+                render.rect(vector(position.x, position.y + 28 + (add_y * 22)), vector(width, position.y + 48 + (add_y * 22)), color(0,0,0,120), 4)
+                render.text(G8.defs.fonts.verdana14au, vector(position.x + 2, position.y + 30 + (add_y * 22)), color(255, 255, 255, 255), nil, active_bind_list[i].name)
+                render.text(G8.defs.fonts.verdana14au, vector(width - active_bind_list[i].value_size.x - 2, position.y + 30 + (add_y * 22)), color(255, 255, 255, 255), nil, active_bind_list[i].value)
+                add_y = add_y + 1
+            end
+            G8.ui_handler.update("Keybinds", max_x, add_y * 22 + 26)
+        end
+    end
+
+    if UI.contains("visual_solusui", "Spectators") then
+        local position = G8.ui_handler.get("Spectators")
+        local localplayer = entity_get_local_player()
+
+        local spectators_list
+        local spectators = {}
+        local max_x = 165
+
+        if globals.is_in_game then
+            if not localplayer:is_alive() then
+                local target = localplayer.m_hObserverTarget
+                if target == nil then return end
+                spectators_list = target:get_spectators()
+                table.insert(spectators_list, localplayer)
+            else
+                spectators_list = localplayer:get_spectators()
+            end
+
+            for i = 1, #spectators_list do
+                local v = spectators_list[i]
+                local name = v:get_name()
+                local name_size = render_measure_text(G8.defs.fonts.verdana14au, nil, name).x
+
+                if name_size + 22 > max_x then
+                    if name_size + 22 < 220 then
+                        max_x = name_size + 22
+                    else
+                        local should_size = string.len(name) * (198 / name_size) - 4
+                        name = string.sub(name, 1, should_size) .. "..."
+                        max_x = 198
+                    end
+                end
+
+                table.insert(spectators, {avatar = v:get_steam_avatar(), name = name})
+            end
+        end
+
+
+        if ui_get_alpha() > 0.3 or #spectators > 0 then
+            render.rect(position, vector(position.x + max_x, position.y + 26), color(0,0,0,220), 5)
+            render.text(G8.defs.fonts.verdana14au, vector(position.x + (max_x / 2), position.y + 13), color(255, 255, 255, 255), "c", "Spectators")
+
+            local add_y = 0
+            local width = position.x + max_x
+
+            for i = 1, #spectators do
+                render.rect(vector(position.x, position.y + 28 + (add_y * 22)), vector(width, position.y + 48 + (add_y * 22)), color(0,0,0,120), 4)
+                render.texture(spectators[i].avatar, vector(position.x + 1, position.y + 29 + (add_y * 22)), vector(17, 17), color(), 'f', 5)
+                render.text(G8.defs.fonts.verdana14au, vector(position.x + 21, position.y + 30 + (add_y * 22)), color(255, 255, 255, 255), nil, spectators[i].name)
+                add_y = add_y + 1
+            end
+            G8.ui_handler.update("Spectators", max_x, add_y * 22 + 26)
+        end
     end
 end
 
@@ -2511,14 +2812,20 @@ G8.feat.animbreaker = function ()
         end
 
         local local_player_index = local_player:get_index()
-        local local_player_address = G8.funs.get_entity_address(local_player_index)
+        local local_player_address = ffi_helpers.get_entity_address(local_player_index)
 
         if not local_player_address or G8.vars.hooked_function then
             return
         end
 
-        local new_point = vmthook.new(local_player_address)
-        G8.vars.hooked_function = new_point.hook("void(__fastcall*)(void*, void*)", G8.funs.inside_updateCSA, 224)
+        local new_point = ffi_helpers.vmt_hook.new(local_player_address)
+        G8.vars.hooked_function = new_point.hookMethod("void(__fastcall*)(void*, void*)", G8.funs.inside_updateCSA, 224)
+    end
+end
+
+G8.feat.move_lean = function (cmd)
+    if UI.contains("animbreaker_list", "Move Lean") then
+    	cmd.animate_move_lean = true
     end
 end
 
@@ -2540,8 +2847,12 @@ G8.regs.createmove = function (cmd)
     -- G8.feat.fix_aa(cmd)
     G8.feat.anti_aim(cmd)
     G8.feat.fake_lag(cmd)
-    G8.feat.animbreaker()
     G8.feat.choked_list(cmd)
+    G8.feat.move_lean(cmd)
+end
+
+G8.regs.createmove_run = function (cmd)
+    G8.feat.animbreaker()
 end
 
 G8.regs.aim_fire = function ()
@@ -2563,6 +2874,7 @@ G8.regs.bullet_impact = function (info)
 end
 
 G8.regs.render = function ()
+    G8.ui_handler.render_callback()
     G8.feat.view_model()
     G8.feat.solusui()
     G8.feat.crosshair()
@@ -2570,10 +2882,24 @@ G8.regs.render = function ()
     G8.feat.log_render()
 end
 
-G8.regs.shutdown = function ()
-    for _, reset_function in ipairs(vmthook.list) do
-        reset_function()
+G8.regs.mouse_input = function ()
+    if not UI.get("visual_lockmouse") then
+        return
     end
+
+    if ui_get_alpha() > 0.3 then
+        return false
+    end
+end
+
+G8.regs.shutdown = function ()
+	for _, unhookFunction in ipairs(ffi_helpers.vmt_hook.hooks) do
+		unhookFunction()
+	end
+
+	for _, free in ipairs(ffi_helpers.buff.free) do
+		free()
+	end
 
     local _reset
 
