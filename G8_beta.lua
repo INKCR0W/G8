@@ -1,6 +1,6 @@
 -- EXTERN START
 
-local ui_create, ui_find, utils_create_interface, files_write, files_read, printdev, printraw, printchat, entity_get_local_player, utils_console_exec, render_load_image_from_file, common_add_notify, common_get_username, render_texture, render_world_to_ , is_button_down, render_screen_size, render_load_font, render_text, render_poly_blur, utils_execute_after, render_circle_outline, entity_get_game_rules, render_gradient, render_measure_text, rage_exploit, ui_get_icon, files_get_crc32, ui_get_alpha, common_reload_script, files_create_folder, math_sqrt, utils_random_int, entity_get_players, utils_net_channel, utils_get_vfunc, bit_band, bit_lshift, entity_get, entity_get_entities, render_camera_angles, common_get_unixtime, network_get, common_get_system_time = ui.create, ui.find, utils.create_interface, files.write, files.read, print_dev, print_raw, print_chat, entity.get_local_player, utils.console_exec, render.load_image_from_file, common.add_notify, common.get_username, render.texture, render.world_to_screen, common.is_button_down, render.screen_size, render.load_font, render.text, render.poly_blur, utils.execute_after, render.circle_outline, entity.get_game_rules, render.gradient, render.measure_text, rage.exploit, ui.get_icon, files.get_crc32, ui.get_alpha, common.reload_script, files.create_folder, math.sqrt, utils.random_int, entity.get_players, utils.net_channel, utils.get_vfunc, bit.band, bit.lshift, entity.get, entity.get_entities, render.camera_angles, common.get_unixtime, network.get, common.get_system_time
+local ui_create, ui_find, utils_create_interface, files_write, files_read, printdev, printraw, printchat, entity_get_local_player, utils_console_exec, render_load_image_from_file, common_add_notify, common_get_username, render_texture, render_world_to_screen , is_button_down, render_screen_size, render_load_font, render_text, render_poly_blur, utils_execute_after, render_circle_outline, entity_get_game_rules, render_gradient, render_measure_text, rage_exploit, ui_get_icon, files_get_crc32, ui_get_alpha, common_reload_script, files_create_folder, math_sqrt, utils_random_int, entity_get_players, utils_net_channel, utils_get_vfunc, bit_band, bit_lshift, entity_get, entity_get_entities, render_camera_angles, common_get_unixtime, network_get, common_get_system_time = ui.create, ui.find, utils.create_interface, files.write, files.read, print_dev, print_raw, print_chat, entity.get_local_player, utils.console_exec, render.load_image_from_file, common.add_notify, common.get_username, render.texture, render.world_to_screen, common.is_button_down, render.screen_size, render.load_font, render.text, render.poly_blur, utils.execute_after, render.circle_outline, entity.get_game_rules, render.gradient, render.measure_text, rage.exploit, ui.get_icon, files.get_crc32, ui.get_alpha, common.reload_script, files.create_folder, math.sqrt, utils.random_int, entity.get_players, utils.net_channel, utils.get_vfunc, bit.band, bit.lshift, entity.get, entity.get_entities, render.camera_angles, common.get_unixtime, network.get, common.get_system_time
 
 local ffi = require ("ffi")
 local bit = require ("bit")
@@ -814,14 +814,9 @@ G8.funs = {
         }, nil, nil)
         UI.new(G8.defs.groups.rage.misc:switch("Jump Scout Fix", false), "ragebot_jumpscout", "b", nil, nil, nil)
         UI.new(G8.defs.groups.rage.misc:switch("Adaptive Extended Backtrack", false), "ragebot_adaptive", "b", nil, nil, nil)
---flag1
+
         UI.new(G8.defs.groups.antiaim.main:switch("Anti-Aim Builder", false), "antiaim_switch", "b", nil, nil, nil)
         UI.new(G8.defs.groups.antiaim.main:combo("Manual Anti-Aim", G8.defs.aa_manuals), "antiaim_manual", "s", {function () return UI.get("antiaim_switch") end;}, nil, nil)
-        -- local aa_manual = UI.get_element("antiaim_manual"):create()
-        -- UI.new(aa_manual:selectable("Disable Yaw", G8.defs.aa_manuals), "antiaim_disable_yaw", "t", {function () return UI.get("antiaim_switch") end;}, nil, nil)
-        -- UI.new(aa_manual:selectable("Disable Desync", G8.defs.aa_manuals), "antiaim_disable_desync", "t", {function () return UI.get("antiaim_switch") end;}, nil, nil)
-        -- UI.new(aa_manual:selectable("Disable At-Target", G8.defs.aa_manuals), "antiaim_disable_attarget", "t", {function () return UI.get("antiaim_switch") end;}, nil, nil)
-        -- UI.new(G8.defs.groups.antiaim.main:switch("Fix Using AA", false), "antiaim_fixaa", "b", {function () return UI.get("antiaim_switch") end;}, nil, nil)
 
 
         UI.new(G8.defs.groups.antiaim.builder:combo("Player Condition", G8.defs.player_states_aa), "antiaim_playercondition", "s", {function () return UI.get("antiaim_switch") end;}, nil, nil)
@@ -1063,36 +1058,6 @@ G8.funs = {
         end
 
 
-        -- UI.new(G8.defs.groups.antiaim.exploit:combo("Exploit AA", {"Disabled", "Fake Flick", "Defensive AA"}), "antiaim_exploit_list", "s", {function () return UI.get("antiaim_switch") end;}, nil, "\aA6C0FEFFWill Override Normail AA")
-        -- UI.new(G8.defs.groups.antiaim.exploit:slider("Flick Speed", 0, 30, 20, 1, function ()
-        --     if UI.get("antiaim_flick_speed") == 0 then
-        --         return "RND."
-        --     else
-        --         return UI.get("antiaim_flick_speed") .. "°"
-        --     end
-        -- end), "antiaim_flick_speed", "i", {
-        --     function () return UI.get("antiaim_switch") end;
-        --     function () return UI.get("antiaim_exploit_list") == "Fake Flick" end;
-        -- }, nil, "\a6E96F0FF0 -> Random")
-        -- UI.new(G8.defs.groups.antiaim.exploit:slider("Flick Yaw", 20, 100, 75, 1, "°"), "antiaim_flick_yaw", "i", {
-        --     function () return UI.get("antiaim_switch") end;
-        --     function () return UI.get("antiaim_exploit_list") == "Fake Flick" end;
-        -- }, nil, nil)
-        -- UI.new(G8.defs.groups.antiaim.exploit:switch("Flick Invert", false), "antiaim_flick_invert", "b", {
-        --     function () return UI.get("antiaim_switch") end;
-        --     function () return UI.get("antiaim_exploit_list") == "Fake Flick" end;
-        -- }, {
-        --     function ()
-        --         if UI.get("antiaim_flick_invert") then
-        --             G8.vars.flick_invert = not G8.vars.flick_invert
-        --             utils_execute_after(0.3, function ()
-        --                 UI.set("antiaim_flick_invert", false)
-        --             end)
-        --         end
-        --     end;
-        -- }, "Bind Any Key")
-        -- UI.new(G8.defs.groups.antiaim.exploit:slider("Yaw Offset", 0, 180, 27, 1, "°"), "antiaim_defensive_offset", "i", {function () return UI.get("antiaim_exploit_list") == "Defensive AA" end;}, nil, nil)
-
         UI.new(G8.defs.groups.fakelag.main:switch("Fake-Lag Builder", false), "fakelag_switch", "b", nil, nil, nil)
         UI.new(G8.defs.groups.fakelag.main:switch("On-Shot Fix", false), "fakelag_fix_switch", "b", {function () return UI.get("fakelag_switch") end;}, nil, "\a2EF333FFSafer to fire")
         UI.new(G8.defs.groups.fakelag.main:switch("Fix While Fake-Duck", false), "fakelag_fix_fakeduck", "b", {
@@ -1237,6 +1202,11 @@ G8.funs = {
         UI.new(G8.defs.groups.visual.skeet_indicator:switch("Skeet Indicator", false), "visual_skeet", "b", nil, nil, nil)
         UI.new(UI.get_element("visual_skeet"):create():selectable("Indicators", {"G8", "Weapon State", "DMG", "HC", "FL", "DT", "HS", "FD", "DA", "LC"}), "visual_skeet_list", "t", { function () return UI.get("visual_skeet") end; }, nil, nil)
         UI.new(UI.get_element("visual_skeet"):create():slider("Y Offset", -500, 500, 0), "visual_skeet_offset", "i", { function () return UI.get("visual_skeet") end; }, nil, nil)
+
+        -- UI.new(G8.defs.groups.visual.scope_overlay:switch("Scope Overlay", false), "visual_scope_overlay", "b", nil, nil, nil)
+        -- local sover = UI.get_element("visual_scope_overlay"):create()
+
+        UI.new(G8.defs.groups.visual.misc:switch("Line", false), "visual_line", "b", nil, nil, nil)
 
         UI.new(G8.defs.groups.misc.logs:switch("Hit/Mis log", false), "log_hitmiss", "b", nil, nil, nil)
         local tlog = UI.get_element("log_hitmiss"):create()
@@ -1552,6 +1522,7 @@ G8.defs.groups = {
         crosshair_indicator = ui_create(G8.defs.tabs.visual, ui_get_icon("crosshairs") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Crosshair Indicator")),
         skeet_indicator = ui_create(G8.defs.tabs.visual, ui_get_icon("window-maximize") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Skeet Indicator")),
         scope_overlay = ui_create(G8.defs.tabs.visual, ui_get_icon("camera-retro") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Scope Overlay")),
+        misc = ui_create(G8.defs.tabs.visual, ui_get_icon("eye") .. G8.funs.gradient_text(42, 245, 152, 255, 0, 158, 253, 255, " Misc")),
     },
 
     misc = {
@@ -2670,6 +2641,26 @@ G8.feat.solusui = function ()
     end
 end
 
+G8.feat.line = function ()
+    if not UI.get("visual_line") then return end
+    local me = entity_get_local_player()
+    if not me or not me:is_alive() then return end
+
+    local player
+    local dist = 999999
+    me = me:get_origin()
+    entity_get_players(true, false, function(ent)
+        if me:dist(ent:get_origin()) < dist and ent:is_alive() then
+            dist = me:dist(ent:get_origin())
+            player = ent:get_origin()
+        end
+    end)
+
+    if dist ~= 999999 then
+        render.line(render_world_to_screen(me), render_world_to_screen(player), color(255, 255, 255, 255))
+    end
+end
+
 G8.feat.choked_list = function (cmd)
     if (cmd.choked_commands < G8.vars.choked_history[5]) then
         G8.vars.choked_history[1] = G8.vars.choked_history[2]
@@ -2879,6 +2870,7 @@ G8.regs.render = function ()
     G8.feat.solusui()
     G8.feat.crosshair()
     G8.feat.skeet_indicator()
+    G8.feat.line()
     G8.feat.log_render()
 end
 
