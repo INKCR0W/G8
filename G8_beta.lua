@@ -18,7 +18,7 @@ local UI = { list = {} }
 
 UI.new = function (element, index, flag, conditions, callback, tooltip)
     assert(element, "Element is nil, index -> " .. (index or "nil"))
-    assert(index, "Index is nil, element -> " .. (element:get_name() or "nil"))
+    assert(index, "Index is nil")
     assert(type(index) == "string", "Invalid type of index, index -> " .. index)
     assert((callback == nil) or (callback.func and callback.setup ~= nil), "Invalid callback, index -> " .. (index or "nil"))
     assert(function ()
@@ -302,6 +302,7 @@ G8.ui_handler.TAB = ui_create("HIDE TAB", "UI POSITIONS")
 
 G8.ui_handler.moving = nil
 G8.ui_handler.mouse = nil
+G8.ui_handler.mouse_block = false
 
 G8.ui_handler.new = function (index, position)
     assert(type(index) == "string", "Invalid type of index, index -> " .. (index or "nil"))
@@ -384,6 +385,12 @@ G8.ui_handler.render_callback = function ()
     else
         G8.ui_handler.moving = nil
         G8.ui_handler.mouse = nil
+    end
+
+    if G8.ui_handler.moving ~= nil and G8.ui_handler.moving ~= "nil" and ui_get_alpha() > 0.3 then
+        G8.ui_handler.mouse_block = true
+    else
+        G8.ui_handler.mouse_block = false
     end
 end
 
@@ -749,6 +756,15 @@ G8.funs = {
         UI.new(G8.defs.groups.main.main:label("Welcome, " .. G8.funs.gradient_text(255, 8, 68, 255, 255, 177, 153, 255, G8.defs.username)), "main_label", "-", nil, nil, nil)
         UI.new(G8.defs.groups.main.main:switch("Loaded Music", false), "main_loaded_sound", "b", nil, nil, nil)
         UI.new(G8.defs.groups.main.main:switch("Enable G8 GIF", false), "main_gif_switch", "b", nil, nil, "FFYOU SURE???")
+        UI.new(G8.defs.groups.main.main:button("My Website", function ()
+            G8.funs.open_link("https://crow.pub/")
+        end), "main_website", "-", nil, nil, nil)
+        UI.new(G8.defs.groups.main.main:button("QQ Group", function ()
+            G8.funs.open_link("https://jq.qq.com/?_wv=1027&k=Y9FrtQL1")
+        end), "main_qqgroup", "-", nil, nil, nil)
+        UI.new(G8.defs.groups.main.main:button("My Config", function ()
+            G8.funs.open_link("https://en.neverlose.cc/market/item?id=nEFVYi")
+        end), "main_config", "-", nil, nil, nil)
         UI.new(G8.defs.groups.main.texture:texture(G8.defs.gif, vector(338,338)), "main_gif", "-", {function () return UI.get("main_gif_switch") end,}, nil, nil)
 
         UI.new(G8.defs.groups.rage.ragebot:switch("Weapon Builder", false), "ragebot_switch", "b", nil, nil, nil)
@@ -857,6 +873,23 @@ G8.funs = {
             }, nil)
             if state == "Manual-AA" then
                 UI.new(G8.defs.groups.antiaim.builder:selectable("Override Manuals", G8.defs.aa_manuals), "antiaim_override_manuals", "t", {
+                    function () return UI.get("antiaim_switch") end;
+                    function () return UI.get("antiaim_playercondition") == state end;
+                    function () return UI.get("antiaim_override_" .. state) end;
+                    }, nil, nil)
+            end
+            if state == "Exploit-Defensive" then
+                UI.new(G8.defs.groups.antiaim.builder:selectable("Allow Defensive States", {
+                    "Global",
+                    "Standing",
+                    "Running",
+                    "Crouching",
+                    "Slow-Walk",
+                    "Air",
+                    "Air-Duck",
+                    "Fake-Duck",
+                    "On-Peek",
+                }), "antiaim_defensive_states", "t", {
                     function () return UI.get("antiaim_switch") end;
                     function () return UI.get("antiaim_playercondition") == state end;
                     function () return UI.get("antiaim_override_" .. state) end;
@@ -1192,7 +1225,6 @@ G8.funs = {
 
         UI.new(G8.defs.groups.visual.solus_ui:selectable("Solus UI", {"Watermark", "Keybinds", "Spectators"}), "visual_solusui", "t", nil, nil, nil)
         UI.new(G8.defs.groups.visual.solus_ui:combo("Language", {"zh_CN", "en_US"}), "visual_solusui_language", "s", { function () return UI.contains("visual_solusui", "Keybinds") end; }, nil, nil)
-        UI.new(G8.defs.groups.visual.solus_ui:switch("Lock Mouse", false), "visual_lockmouse", "b", nil, nil, nil)
         G8.ui_handler.new("Keybinds", vector(100, 100))
         G8.ui_handler.new("Spectators", vector(100, 100))
 
@@ -1207,6 +1239,8 @@ G8.funs = {
         -- local sover = UI.get_element("visual_scope_overlay"):create()
 
         UI.new(G8.defs.groups.visual.misc:switch("Line", false), "visual_line", "b", nil, nil, nil)
+        UI.new(G8.defs.groups.visual.misc:switch("Hit Marker", false), "visual_hitmarker", "b", nil, nil, nil)
+        UI.new(UI.get_element("visual_hitmarker"):color_picker(), "visual_hitmarker_color", "c", {function () return UI.get("visual_hitmarker") end;}, nil, nil)
 
         UI.new(G8.defs.groups.misc.logs:switch("Hit/Mis log", false), "log_hitmiss", "b", nil, nil, nil)
         local tlog = UI.get_element("log_hitmiss"):create()
@@ -1573,7 +1607,6 @@ G8.vars = {
     fl_way = 1,
     fl_tick = 0,
     be_attacked = false,
-    defensive_tick = 0,
     temp_fl = 1,
     fl_limit = 1,
     block_charge = 0,
@@ -1583,12 +1616,21 @@ G8.vars = {
     weapon_state = "Default",
     load_timer = 0,
     log_list = {},
+    marker_list = {},
     hooked_function = nil,
     is_jumping = false,
     attacked_str = {},
     attacked_say_time = 0,
     crosshair_list = {G8.defs.screen_size.x / 2, G8.defs.screen_size.x / 2, G8.defs.screen_size.x / 2},
     choked_history = {0,0,0,0,0},
+    tickbase_list = (function ()
+        local tab = {}
+        for i = 1, 16 do
+            tab[i] = 0
+        end
+        return tab
+    end)(),
+    defensive = false,
 }
 
 -- VARS END
@@ -1971,10 +2013,31 @@ G8.feat.adaptive_backtrack = function ()
     local weapon_index = me:get_player_weapon():get_weapon_index()
 
     if weapon_index and weapon_index == 40 or weapon_index == 9 then
-        G8.refs.misc.fake_latency:set(150)
+        G8.refs.misc.fake_latency:set(math.min(math.max(0, 150 - math.floor(math.max(0, utils_net_channel().latency[0] * 1000))), 200))
     else
         G8.refs.misc.fake_latency:set(math.min(math.max(0, 200 - math.floor(math.max(0, utils_net_channel().latency[0] * 1000))), 200))
     end
+end
+
+G8.feat.update_defensive = function ()
+    local me = entity_get_local_player()
+
+    if not me or not me:is_alive() then
+        return
+    end
+
+    local sim_time = me.m_flSimulationTime
+
+    if not sim_time then return end
+
+    local tick_count = globals.tickcount
+    local shifted = math.max(unpack(G8.vars.tickbase_list))
+
+    local can_defensive = shifted < 0 and math.abs(shifted) or 0
+    table.insert(G8.vars.tickbase_list, sim_time / globals.tickinterval - tick_count)
+    table.remove(G8.vars.tickbase_list, 1)
+
+    G8.vars.defensive = G8.refs.ragebot.double_tap.switch:get() and G8.refs.ragebot.double_tap.switch:get_override() ~= false and can_defensive == 0
 end
 
 G8.feat.anti_aim = function (cmd)
@@ -2016,12 +2079,11 @@ G8.feat.anti_aim = function (cmd)
     if state == "On-Peek" and not UI.get("antiaim_override_On-Peek") then state = "Running" end
     state = UI.get("antiaim_override_" .. state) and state or "Global"
 
-    if G8.refs.ragebot.double_tap.switch:get() and rage_exploit:get() ~= 1 and UI.get("antiaim_override_Exploit-Defensive") and not G8.refs.antiaim.misc.fake_duck:get() and G8.vars.defensive_tick > 0 then
+    if G8.vars.defensive and UI.get("antiaim_override_Exploit-Defensive") and UI.contains("antiaim_defensive_states", state) then
         state = "Exploit-Defensive"
-        G8.vars.defensive_tick = G8.vars.defensive_tick - 1
-    elseif G8.vars.defensive_tick > 0 then
-        G8.vars.defensive_tick = 0
     end
+
+
 
     local offset = 0
 
@@ -2165,12 +2227,6 @@ G8.feat.anti_aim = function (cmd)
     setvalues(_data)
 end
 
-G8.feat.aa_defensive_weaponfire = function (info)
-    if info.userid ~= entity_get_local_player():get_player_info().userid then return end
-    if G8.refs.ragebot.double_tap.switch:get() then
-        G8.vars.defensive_tick = 32
-    end
-end
 
 G8.feat.attacked = function (info)
     local me = entity_get_local_player()
@@ -2379,7 +2435,7 @@ G8.feat.fake_lag = function (cmd)
         G8.refs.antiaim.body_yaw.switch:override()
     end
 
-    if G8.refs.ragebot.double_tap.switch:get() and UI.get("antiaim_switch") and UI.get("antiaim_override_Exploit-Defensive") then
+    if G8.refs.ragebot.double_tap.switch:get() then
         _data.switch = false
     end
 
@@ -2555,7 +2611,7 @@ G8.feat.solusui = function ()
             local bind_name_size = render.measure_text(1, 'o', bind_name)
             local bind_value_size = render.measure_text(G8.defs.fonts.verdana14au, 'o', bind_value)
 
-            local width_k = bind_value_size.x + bind_name_size.x + 25
+            local width_k = bind_value_size.x + bind_name_size.x + 35
 
             if width_k > 155 then
                 if width_k > max_x then
@@ -2661,6 +2717,42 @@ G8.feat.line = function ()
     end
 end
 
+G8.feat.hitmarker_ack = function (info)
+    if not UI.get("visual_hitmarker") then return end
+    if not info.target then return end
+    if not info.state then
+        table.insert(G8.vars.marker_list, {position = info.target:get_hitbox_position(info.hitgroup)})
+    end
+end
+
+G8.feat.hitmarker_render = function ()
+    if #G8.vars.marker_list == 0 then return end
+    local realtime = globals.realtime
+    local clr = UI.get("visual_hitmarker_color")
+
+    for _, mk in pairs(G8.vars.marker_list) do
+        if not mk.init then
+            mk.time = realtime
+            mk.init = true
+        end
+
+        local histime = realtime - mk.time
+
+        if histime > 3 then
+            table.remove(G8.vars.marker_list, _)
+        end
+
+        local screen_vector = render_world_to_screen(mk.position)
+
+        if screen_vector then
+            local x, y = screen_vector:unpack()
+            render.circle(vector(x - 3, y + 3), clr, 4, 0, 1)
+            render.circle(vector(x + 3, y + 3), clr, 4, 0, 1)
+            render.rect(vector(x - 3, y - 12), vector(x + 3, y + 2), clr, 6)
+        end
+    end
+end
+
 G8.feat.choked_list = function (cmd)
     if (cmd.choked_commands < G8.vars.choked_history[5]) then
         G8.vars.choked_history[1] = G8.vars.choked_history[2]
@@ -2717,6 +2809,7 @@ end
 
 
 G8.feat.log_ack = function (info)
+    if not info.target then return end
     local language = UI.get("log_language")
     if info.state then
         local name = info.target:get_name()
@@ -2824,6 +2917,9 @@ end
 
 
 -- REGS START
+G8.regs.net_update_start = function ()
+    G8.feat.update_defensive()
+end
 
 G8.regs.createmove = function (cmd)
     G8.feat.updatevar(cmd)
@@ -2853,10 +2949,10 @@ end
 G8.regs.aim_ack = function (info)
     G8.feat.fl_fix_ack()
     G8.feat.log_ack(info)
+    G8.feat.hitmarker_ack(info)
 end
 
 G8.regs.weapon_fire = function (info)
-    G8.feat.aa_defensive_weaponfire(info)
     G8.feat.fl_fix_weaponfire(info)
 end
 
@@ -2872,14 +2968,11 @@ G8.regs.render = function ()
     G8.feat.skeet_indicator()
     G8.feat.line()
     G8.feat.log_render()
+    G8.feat.hitmarker_render()
 end
 
 G8.regs.mouse_input = function ()
-    if not UI.get("visual_lockmouse") then
-        return
-    end
-
-    if ui_get_alpha() > 0.3 then
+    if G8.ui_handler.mouse_block then
         return false
     end
 end
