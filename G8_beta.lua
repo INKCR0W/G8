@@ -746,8 +746,10 @@ G8.funs = {
                 ffi.cast('CAnimationLayer**', ffi.cast('uintptr_t', entity_localplayer_address) + 10640)[0][6].m_flWeight = 1
             end
 
-            if UI.contains("animbreaker_list", "Move Lean") and G8.vars.player_state ~= "Crouching" then
+            if UI.contains("animbreaker_list", "Move Lean") then
                 ffi.cast('CAnimationLayer**', ffi.cast('uintptr_t', entity_localplayer_address) + 10640)[0][12].m_flWeight = UI.get("animbreaker_movelean_force") / 100
+            else
+                ffi.cast('CAnimationLayer**', ffi.cast('uintptr_t', entity_localplayer_address) + 10640)[0][12].m_flWeight = 0
             end
         end
     end;
@@ -2908,7 +2910,7 @@ G8.feat.animbreaker = function ()
 end
 
 G8.feat.move_lean = function (cmd)
-    if UI.contains("animbreaker_list", "Move Lean") then
+    if UI.contains("animbreaker_list", "Move Lean") and G8.vars.player_state ~= "Crouching" and G8.vars.player_state ~= "Standing" and G8.vars.player_state ~= "Slow-Walk" then
     	cmd.animate_move_lean = true
     end
 end
