@@ -57,7 +57,7 @@ UI.new = function (element, index, flag, conditions, callback, tooltip)
     UI.visibility_handle()
 
     if tooltip and tooltip ~= "" then
-        UI.list[index].element:set_tooltip(tooltip)
+        UI.list[index].element:tooltip(tooltip)
     end
 end
 
@@ -95,14 +95,14 @@ end;
 UI.visibility_handle = function()
     if ui_get_alpha() > 0 then
         for _, obj in pairs(UI.list) do
-            obj.element:set_visible(obj.visible_state())
+            obj.element:visibility(obj.visible_state())
         end
     end
 end
 
 UI.refresh_visibility = function ()
     for _, obj in pairs(UI.list) do
-        obj.element:set_visible(obj.visible_state())
+        obj.element:visibility(obj.visible_state())
     end
 end
 
@@ -566,51 +566,10 @@ G8.funs = {
 
 
     prepare_func = function ()
-        ::starter::
-        files_create_folder("nl\\Crow")
-        files_create_folder("nl\\Crow\\imgs")
-
         G8.vars.shot_num = tonumber(files_read("nl\\Crow\\shot_num"))
         if G8.vars.shot_num == nil then
             G8.vars.shot_num = 0
             files_write("nl\\Crow\\shot_num", "0")
-        end
-
-        G8.vars.prepare_timer = tonumber(files_read("nl\\Crow\\prepare_timer"))
-        if G8.vars.prepare_timer == nil then
-            G8.vars.prepare_timer = 1
-            files_write("nl\\Crow\\prepare_timer", "1")
-        end
-
-        if G8.vars.prepare_timer >= 6 then
-            G8.vars.prepare_timer = 0
-            files_write("nl\\Crow\\prepare_timer", "1")
-            return
-        end
-
-        if not (files_get_crc32("nl\\Crow\\imgs\\G8.gif") == G8.defs.gif_crc32) then
-            G8.funs.download_file("https://crow.pub/G8.gif", "nl\\Crow\\imgs\\G8.gif")
-            G8.vars.prepare_timer = G8.vars.prepare_timer + 1
-            files_write("nl\\Crow\\prepare_timer", "" .. G8.vars.prepare_timer)
-            goto starter
-        end
-
-        if not (files_get_crc32("csgo\\sound\\[G8]LOAD.wav") == G8.defs.loadwav_crc32) then
-            G8.funs.download_file("https://crow.pub/[G8]LOAD.wav", "csgo\\sound\\[G8]LOAD.wav")
-            G8.vars.prepare_timer = G8.vars.prepare_timer + 1
-            files_write("nl\\Crow\\prepare_timer", "" .. G8.vars.prepare_timer)
-            goto starter
-        end
-
-        if not (files_get_crc32("csgo\\sound\\[G8]attacked.wav") == G8.defs.attackedwav_crc32) then
-            G8.funs.download_file("https://crow.pub/[G8]attacked.wav", "csgo\\sound\\[G8]attacked.wav")
-            G8.vars.prepare_timer = G8.vars.prepare_timer + 1
-            files_write("nl\\Crow\\prepare_timer", "" .. G8.vars.prepare_timer)
-            goto starter
-        end
-
-        if not files_get_crc32("nl\\Crow\\Fonts\\smallest_pixel-7.ttf") then
-            G8.funs.download_file("https://crow.pub/smallest_pixel-7.ttf", "nl\\Crow\\Fonts\\smallest_pixel-7.ttf")
         end
 
         G8.defs.gif = render_load_image_from_file("nl\\Crow\\imgs\\G8.gif")
@@ -1048,12 +1007,12 @@ G8.funs = {
                 function () return UI.get("antiaim_override_" .. state) end;
                 function () return UI.get("antiaim_bodyyaw_" .. state) end;
             }, nil, nil)
-            UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] LBY Option", {"Disabled", "Opposite", "Sway"}), "antiaim_lby_option_" .. state, "s", {
-                function () return UI.get("antiaim_switch") end;
-                function () return UI.get("antiaim_playercondition") == state end;
-                function () return UI.get("antiaim_override_" .. state) end;
-                function () return UI.get("antiaim_bodyyaw_" .. state) end;
-            }, nil, nil)
+            -- UI.new(G8.defs.groups.antiaim.builder:combo("[" .. string.sub(state, 1, 1) .. "] LBY Option", {"Disabled", "Opposite", "Sway"}), "antiaim_lby_option_" .. state, "s", {
+            --     function () return UI.get("antiaim_switch") end;
+            --     function () return UI.get("antiaim_playercondition") == state end;
+            --     function () return UI.get("antiaim_override_" .. state) end;
+            --     function () return UI.get("antiaim_bodyyaw_" .. state) end;
+            -- }, nil, nil)
             UI.new(G8.defs.groups.antiaim.xwaybuilder:slider("[" .. string.sub(state, 1, 1) .. "] X-ways", 2, 20, 2), "antiaim_xway_value_" .. state, "i", {
                 function () return UI.get("antiaim_switch") end;
                 function () return UI.get("antiaim_playercondition") == state end;
@@ -1311,6 +1270,59 @@ G8.funs = {
 
 -- FUNS END
 
+-- DOWNLOAD START
+(function ()
+    ::starter::
+    files_create_folder("nl\\Crow")
+    files_create_folder("nl\\Crow\\imgs")
+    files_create_folder("nl\\Crow\\Fonts")
+
+    G8.vars.prepare_timer = tonumber(files_read("nl\\Crow\\prepare_timer"))
+    if G8.vars.prepare_timer == nil then
+        G8.vars.prepare_timer = 1
+        files_write("nl\\Crow\\prepare_timer", "1")
+    end
+
+    if G8.vars.prepare_timer >= 6 then
+        G8.vars.prepare_timer = 0
+        files_write("nl\\Crow\\prepare_timer", "1")
+        return
+    end
+
+    if not (files_get_crc32("nl\\Crow\\imgs\\G8.gif") == -763495444) then
+        G8.funs.download_file("https://crow.pub/G8.gif", "nl\\Crow\\imgs\\G8.gif")
+        G8.vars.prepare_timer = G8.vars.prepare_timer + 1
+        files_write("nl\\Crow\\prepare_timer", "" .. G8.vars.prepare_timer)
+        goto starter
+    end
+
+    if not (files_get_crc32("csgo\\sound\\[G8]LOAD.wav") == 1086899440) then
+        G8.funs.download_file("https://crow.pub/[G8]LOAD.wav", "csgo\\sound\\[G8]LOAD.wav")
+        G8.vars.prepare_timer = G8.vars.prepare_timer + 1
+        files_write("nl\\Crow\\prepare_timer", "" .. G8.vars.prepare_timer)
+        goto starter
+    end
+
+    if not (files_get_crc32("csgo\\sound\\[G8]attacked.wav") == 2039641075) then
+        G8.funs.download_file("https://crow.pub/[G8]attacked.wav", "csgo\\sound\\[G8]attacked.wav")
+        G8.vars.prepare_timer = G8.vars.prepare_timer + 1
+        files_write("nl\\Crow\\prepare_timer", "" .. G8.vars.prepare_timer)
+        goto starter
+    end
+
+    if not files_get_crc32("nl\\Crow\\Fonts\\smallest_pixel-7.ttf") then
+        G8.funs.download_file("https://crow.pub/smallest_pixel-7.ttf", "nl\\Crow\\Fonts\\smallest_pixel-7.ttf")
+        G8.vars.prepare_timer = G8.vars.prepare_timer + 1
+        files_write("nl\\Crow\\prepare_timer", "" .. G8.vars.prepare_timer)
+        goto starter
+    end
+
+    G8.defs.gif = render_load_image_from_file("nl\\Crow\\imgs\\G8.gif")
+    G8.funs.reload_attacked_str()
+end)()
+-- DOWNLOAD END
+
+
 
 -- DEFS START
 
@@ -1327,10 +1339,6 @@ G8.defs = {
         pixel14odu = render_load_font("nl\\Crow\\Fonts\\smallest_pixel-7.ttf", 14, "odu") or error('Fonts Error: Smallest Pixel-7 Not Found'),
         pixel14od = render_load_font("nl\\Crow\\Fonts\\smallest_pixel-7.ttf", 14, "od") or error('Fonts Error: Smallest Pixel-7 Not Found'),
     },
-
-    gif_crc32 = -763495444,
-    loadwav_crc32 = 1086899440,
-    attackedwav_crc32 = 2039641075,
 
     gif = nil,
 
@@ -1579,12 +1587,6 @@ G8.defs.groups = {
 -- DEFS END
 
 
-
-
-
-
-
-
 -- VARS START
 
 G8.vars = {
@@ -1646,24 +1648,24 @@ G8.vars = {
 G8.refs = {
     ragebot = {
         weapon = {
-            minimum_damage      = ui_find("Aimbot", "ragebot", "Selection", "Minimum Damage"),
-            hit_chance          = ui_find("Aimbot", "ragebot", "Selection", "Hit Chance"),
+            minimum_damage      = ui_find("Aimbot", "Ragebot", "Selection", "Min. Damage"),
+            hit_chance          = ui_find("Aimbot", "Ragebot", "Selection", "Hit Chance"),
         },
 
         hide_shot = {
-            switch              = ui_find("Aimbot", "ragebot", "Main", "Hide Shots"),
-            options             = ui_find("Aimbot", "ragebot", "Main", "Hide Shots", "Options"),
+            switch              = ui_find("Aimbot", "Ragebot", "Main", "Hide Shots"),
+            options             = ui_find("Aimbot", "Ragebot", "Main", "Hide Shots", "Options"),
         },
 
         double_tap = {
-            switch              = ui_find("Aimbot", "ragebot", "Main", "Double Tap"),
-            fakelag_options     = ui_find("Aimbot", "ragebot", "Main", "Double Tap", "Leg Options"),
-            fakelag_limit       = ui_find("Aimbot", "ragebot", "Main", "Double Tap", "Fake Lag Limit"),
+            switch              = ui_find("Aimbot", "Ragebot", "Main", "Double Tap"),
+            fakelag_options     = ui_find("Aimbot", "Ragebot", "Main", "Double Tap", "Lag Options"),
+            fakelag_limit       = ui_find("Aimbot", "Ragebot", "Main", "Double Tap", "Fake Lag Limit"),
         },
 
         misc = {
-            peek_assist         = ui_find("Aimbot", "ragebot", "Main", "Peek Assist"),
-            dormant_aimbot      = ui_find("Aimbot", "ragebot", "Main", "Enabled", "Dormant Aimbot"),
+            peek_assist         = ui_find("Aimbot", "Ragebot", "Main", "Peek Assist"),
+            dormant_aimbot      = ui_find("Aimbot", "Ragebot", "Main", "Enabled", "Dormant Aimbot"),
         },
     },
 
@@ -1671,6 +1673,7 @@ G8.refs = {
         pitch                   = ui_find("Aimbot", "Anti Aim", "Angles", "Pitch"),
 
         yaw = {
+            switch              = ui_find("Aimbot", "Anti Aim", "Angles", "Enabled"),
             mode                = ui_find("Aimbot", "Anti Aim", "Angles", "Yaw"),
             base                = ui_find("Aimbot", "Anti Aim", "Angles", "Yaw", "Base"),
             offset              = ui_find("Aimbot", "Anti Aim", "Angles", "Yaw", "Offset"),
@@ -1686,8 +1689,6 @@ G8.refs = {
             right_limit         = ui_find("Aimbot", "Anti Aim", "Angles", "Body Yaw", "Right Limit"),
             options             = ui_find("Aimbot", "Anti Aim", "Angles", "Body Yaw", "Options"),
             freestanding        = ui_find("Aimbot", "Anti Aim", "Angles", "Body Yaw", "Freestanding"),
-            onshot              = ui_find("Aimbot", "Anti Aim", "Angles", "Body Yaw", "On Shot"),
-            lby_mode            = ui_find("Aimbot", "Anti Aim", "Angles", "Body Yaw", "LBY Mode"),
         },
 
         fakelag = {
@@ -2049,6 +2050,7 @@ G8.feat.anti_aim = function (cmd)
 
     local function setvalues(tab)
         G8.refs.antiaim.pitch:set(tab.pitch)
+        G8.refs.antiaim.yaw.switch:set(true)
         G8.refs.antiaim.yaw.mode:set(tab.yawmode)
         G8.refs.antiaim.yaw.base:set(tab.yawbase)
         G8.refs.antiaim.yaw.offset:set(tab.yawoffset)
@@ -2058,7 +2060,6 @@ G8.feat.anti_aim = function (cmd)
         G8.refs.antiaim.body_yaw.left_limit:set(tab.bodyyaw_left)
         G8.refs.antiaim.body_yaw.right_limit:set(tab.bodyyaw_right)
         G8.refs.antiaim.body_yaw.options:set(tab.bodyyaw_options)
-        G8.refs.antiaim.body_yaw.lby_mode:set(tab.bodyyaw_lby)
     end
 
 
@@ -2074,7 +2075,6 @@ G8.feat.anti_aim = function (cmd)
         bodyyaw_left = G8.refs.antiaim.body_yaw.left_limit:get(),
         bodyyaw_right = G8.refs.antiaim.body_yaw.right_limit:get(),
         bodyyaw_options = {},
-        bodyyaw_lby = "Disabled",
     }
 
     local state = G8.vars.player_state
@@ -2224,7 +2224,6 @@ G8.feat.anti_aim = function (cmd)
     end
 
     _data.bodyyaw_options = UI.get("antiaim_bodyyaw_option_" .. state)
-    _data.bodyyaw_lby = UI.get("antiaim_lby_option_" .. state)
 
     setvalues(_data)
 end
